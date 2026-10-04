@@ -20,6 +20,7 @@ class PhysicsEngine {
 
         // Interpolated remote players state map: playerId -> playerObj
         this.remotePlayers = new Map();
+        this.isFrozen = false;
     }
 
     setLocalPlayerId(id) {
@@ -38,11 +39,13 @@ class PhysicsEngine {
         };
         this.inputSequence = 0;
         this.pendingInputs = [];
+        this.isFrozen = false;
         this.clearRemotePlayers(); // Enforce strict state wipe on local reset
     }
 
     // Process local jump input instantly for zero latency
     handleLocalJump() {
+        if (this.isFrozen) return null;
         this.inputSequence++;
         const input = {
             sequence: this.inputSequence,
@@ -61,6 +64,7 @@ class PhysicsEngine {
 
     // Step local physics frame (at 60 FPS)
     updateLocalPhysics() {
+        if (this.isFrozen) return;
         this.predictedState.x += this.forwardVelocity;
         this.predictedState.velocityY += this.gravity;
         this.predictedState.y = Math.max(0, this.predictedState.y + this.predictedState.velocityY);

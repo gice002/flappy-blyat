@@ -477,6 +477,8 @@ class LobbyManager {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: usedItem,
+                    targetId: firstPlacePlayer ? firstPlacePlayer.player_id : null,
+                    targetName: firstPlacePlayer ? firstPlacePlayer.name : null,
                     wasted: true
                 });
                 return;

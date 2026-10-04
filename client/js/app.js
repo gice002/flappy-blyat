@@ -536,6 +536,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const chainedOffset = (currentLobby.mode_id === "flappy_chained") ? (myChainIdx * 60) : 0;
         
         physics.resetLocalState(startX - chainedOffset, startY);
+        physics.isFrozen = true; // Freeze physics & inputs during countdown
+        startGameLoop(); // Start render loop immediately so canvas renders initial game scene
 
         let count = data.countdownSeconds || 3;
         startCountdownEl.style.display = "block";
@@ -550,7 +552,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 clearInterval(timer);
                 startCountdownEl.style.display = "none";
-                startGameLoop();
+                physics.isFrozen = false; // Unfreeze physics for active gameplay
             }
         }, 1000);
     });
@@ -637,22 +639,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     socket.on("item_used", (data) => {
-        if (data.userId === localPlayerId) {
-            physics.localHeldItem = null;
-            updateInventoryUI(null);
-        }
+        try {
+            if (!data) return;
 
-        if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
-            window.localInkUntil = Date.now() + (data.duration || 3000);
-            audioManager.playSFX("swooshing");
-        }
+            if (data.userId === localPlayerId) {
+                physics.localHeldItem = null;
+                updateInventoryUI(null);
+            }
 
-        if (data.itemType === "curse" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
-            audioManager.playSFX("hit");
-        }
+            if (!data.targetId) return; // Strict null check to prevent undefined target errors!
 
-        if (data.shieldBlocked && data.targetId === localPlayerId) {
-            audioManager.playSFX("point");
+            if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+                window.localInkUntil = Date.now() + (data.duration || 3000);
+                audioManager.playSFX("swooshing");
+            }
+
+            if (data.itemType === "curse" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+                audioManager.playSFX("hit");
+            }
+
+            if (data.shieldBlocked && data.targetId === localPlayerId) {
+                audioManager.playSFX("point");
+            }
+        } catch (err) {
+            console.warn("[Client] Safely handled item_used listener error:", err);
         }
     });
 
