@@ -6,16 +6,16 @@ class AudioManager {
         this.sfxMuted = false;
 
         // BGM Audio
-        this.bgm = new Audio("assets/bgm_mario.mp3");
+        this.bgm = new Audio("assets/audio/bgm_mario.mp3");
         this.bgm.loop = true;
         this.bgm.volume = this.bgmVolume;
 
         // SFX Audio Elements
         this.sfx = {
-            wing: new Audio("assets/sfx_wing.wav"),
-            hit: new Audio("assets/sfx_hit.wav"),
-            die: new Audio("assets/sfx_die.wav"),
-            point: new Audio("assets/sfx_point.wav")
+            wing: new Audio("assets/audio/sfx_wing.wav"),
+            hit: new Audio("assets/audio/sfx_hit.wav"),
+            die: new Audio("assets/audio/sfx_die.wav"),
+            point: new Audio("assets/audio/sfx_point.wav")
         };
 
         this.updateVolumes();

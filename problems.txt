@@ -1,0 +1,191 @@
+=== PROBLEM ANALYSIS & CODE REVIEW SNIPPETS ===
+
+1. COLLISION CONSTANTS
+
+--- Server-Side (server/game/gameLoop.js:5-10) ---
+const BIRD_WIDTH = 34;
+const BIRD_HEIGHT = 24;
+const GROUND_Y = 616; // 640 - 24
+const GRAVITY = 0.4;
+const JUMP_VELOCITY = -6;
+const FORWARD_VELOCITY = 2.0;
+
+--- Client-Side (client/js/physics.js:2-8) ---
+class PhysicsEngine {
+    constructor() {
+        this.gravity = 0.4;
+        this.jumpVelocity = -6;
+        this.forwardVelocity = 2.0;
+        this.birdWidth = 34;
+        this.birdHeight = 24;
+        this.groundY = 616;
+
+--- Pipe Constants (server/game/mapGenerator.js:21-25) ---
+const MAP_WIDTH = 2500;
+const PIPE_WIDTH = 52;
+const PIPE_HEIGHT = 320;
+const PIPE_GAP = 140;
+
+
+2. RESPAWN LOGIC
+
+--- Server-Side Respawn (server/game/gameLoop.js:247-271) ---
+    respawnPlayer(player) {
+        const chkId = player.checkpoint_id || this.lobby.startCheckpointId;
+        this.respawnPlayerAtCheckpoint(player, chkId);
+    }
+
+    respawnPlayerAtCheckpoint(player, checkpointId) {
+        const chk = this.lobby.checkpoints.get(checkpointId);
+        const xOffset = (this.lobby.mode_id === "flappy_chained") ? (player.chain_index * CHAIN_SPACING_X) : 0;
+
+        if (chk) {
+            player.x = chk.respawn_coordinate_x - xOffset;
+            player.y = chk.respawn_coordinate_y;
+        } else {
+            player.x = 100 - xOffset;
+            player.y = 320;
+        }
+        player.velocityY = 0;
+
+        this.io.to(this.lobby.Lobby_id).emit("player_respawned", {
+            playerId: player.player_id,
+            checkpointId: checkpointId,
+            x: player.x,
+            y: player.y
+        });
+    }
+
+
+3. CLIENT RECONCILIATION & RESPAWN HANDLING
+
+--- Client Socket Respawn Listener (client/js/app.js:669-676) ---
+    socket.on("player_respawned", (data) => {
+        if (data.playerId === localPlayerId) {
+            audioManager.playSFX("hit");
+            physics.predictedState.x = data.x;
+            physics.predictedState.y = data.y;
+            physics.predictedState.velocityY = 0;
+        }
+    });
+
+--- Client Snapshot Reconciliation (client/js/physics.js:93-118) ---
+    reconcileServerSnapshot(snapshot) {
+        if (!this.localPlayerId) return;
+
+        const serverLocal = snapshot.players.find(p => p.player_id === this.localPlayerId);
+        if (serverLocal) {
+            // Remove inputs already acknowledged by server
+            this.pendingInputs = this.pendingInputs.filter(input => input.sequence > serverLocal.last_processed_input);
+
+            // Re-apply remaining unacknowledged inputs on top of server state
+            let recomputedX = serverLocal.x;
+            let recomputedY = serverLocal.y;
+            let recomputedVelY = serverLocal.velocityY;
+
+            for (let input of this.pendingInputs) {
+                if (input.action === "jump") {
+                    recomputedVelY = this.jumpVelocity;
+                }
+            }
+
+            // Smooth reconciliation or hard override if desynced > 30px
+            const dx = Math.abs(this.predictedState.x - recomputedX);
+            const dy = Math.abs(this.predictedState.y - recomputedY);
+            if (dx > 30 || dy > 30) {
+                this.predictedState.x = recomputedX;
+                this.predictedState.y = recomputedY;
+                this.predictedState.velocityY = recomputedVelY;
+            }
+        }
+    }
+
+
+4. CLIENT-SIDE ITEM EVENT LISTENER
+
+--- Client Item Listener (client/js/app.js:641-667) ---
+    socket.on("item_used", (data) => {
+        try {
+            if (!data) return;
+
+            if (data.userId === localPlayerId) {
+                physics.localHeldItem = null;
+                updateInventoryUI(null);
+            }
+
+            if (!data.targetId) return; // Strict null check to prevent undefined target errors!
+
+            if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+                window.localInkUntil = Date.now() + (data.duration || 3000);
+                audioManager.playSFX("swooshing");
+            }
+
+            if (data.itemType === "curse" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+                audioManager.playSFX("hit");
+            }
+
+            if (data.shieldBlocked && data.targetId === localPlayerId) {
+                audioManager.playSFX("point");
+            }
+        } catch (err) {
+            console.warn("[Client] Safely handled item_used listener error:", err);
+        }
+    });
+
+
+5. EFFECT APPLICATION LOGIC (RENDERING & AURA EFFECTS)
+
+--- Ink Overlay Renderer (client/js/renderer.js:171-191) ---
+    renderInkOverlay() {
+        if (!window.localInkUntil || Date.now() > window.localInkUntil) return;
+        this.ctx.save();
+        const remaining = window.localInkUntil - Date.now();
+        const alpha = Math.min(1.0, remaining / 300);
+        this.ctx.globalAlpha = alpha;
+
+        const splatImg = this.itemImages && this.itemImages.ink_splat;
+        if (splatImg && splatImg.complete) {
+            this.ctx.drawImage(splatImg, (this.width - 560) / 2, (this.height - 440) / 2, 560, 440);
+        } else {
+            this.ctx.fillStyle = "#0c0b10";
+            this.ctx.beginPath();
+            this.ctx.arc(this.width / 2, this.height / 2, 170, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 - 120, this.height / 2 - 60, 100, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 + 130, this.height / 2 + 60, 110, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 + 70, this.height / 2 - 120, 95, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        this.ctx.restore();
+    }
+
+--- Curse & Shield Visual Effects (client/js/renderer.js:470-499) ---
+    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0) {
+        this.ctx.save();
+
+        // If Cursed (speedMultiplier < 1.0), draw purple aura glow around bird
+        if (speedMultiplier < 1.0) {
+            this.ctx.save();
+            this.ctx.fillStyle = "rgba(138, 43, 226, 0.4)";
+            this.ctx.beginPath();
+            this.ctx.arc(x + 17, y + 12, 26, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+
+        // If Shield Active, draw Turquoise Barrier Shield Bubble around bird
+        if (hasShield) {
+            this.ctx.save();
+            this.ctx.strokeStyle = "#40e0d0";
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(x + 17, y + 12, 24, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.fillStyle = "rgba(64, 224, 208, 0.25)";
+            this.ctx.fill();
+
+            const shieldIcon = this.itemImages && this.itemImages.shield;
+            if (shieldIcon && shieldIcon.complete) {
+                this.ctx.drawImage(shieldIcon, x + 17 - 12, y - 26, 24, 24);
+            }
+            this.ctx.restore();
+        }

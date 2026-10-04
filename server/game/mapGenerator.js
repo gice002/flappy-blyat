@@ -1,33 +1,29 @@
 const MapData = require("../models/Map");
 const Checkpoint = require("../models/Checkpoint");
-
-const DEFAULT_THEME = "classic_day";
-const SUBSEQUENT_THEMES = [
-    "underwater",
-    "volcano",
-    "snowy",
-    "candyland",
-    "desert",
-    "city_night",
-    "city_dusk"
-];
+const {
+    DEFAULT_THEME,
+    SUBSEQUENT_THEMES,
+    PIPE_WIDTH,
+    PIPE_HEIGHT,
+    GROUND_Y,
+    PIPE_SPACING_X,
+    START_X,
+    MIN_GAP,
+    MAX_GAP
+} = require("../config/constants");
 
 function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race") {
     const maps = [];
     const checkpoints = new Map();
     const itemBoxes = [];
 
-    const pipeWidth = 64;
-    const pipeHeight = 512;
-    const groundY = 616;
+    const pipeWidth = PIPE_WIDTH;
+    const pipeHeight = PIPE_HEIGHT;
+    const groundY = GROUND_Y;
 
     // BALANCED GAMEPLAY PARAMETERS
-    const pipeSpacingX = 380;
-    const startX = 600;
-
-    // Randomized Vertical Opening Gap range (Min 160px, Max 240px)
-    const MIN_GAP = 160;
-    const MAX_GAP = 240;
+    const pipeSpacingX = PIPE_SPACING_X;
+    const startX = START_X;
 
     let pipeIndexCounter = 0;
     let currentX = startX;
@@ -49,7 +45,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
         const itemXList = [];
         const itemYList = [];
 
-        // 1. Map Theme Randomization: Map 1 MUST be default classic_day, subsequent maps are random from pool
+        // 1. Map Theme Randomization: Map 1 MUST be default "classic_day", subsequent maps are random from pool
         let themeId = DEFAULT_THEME;
         if (m > 1) {
             const randomIndex = Math.floor(Math.random() * SUBSEQUENT_THEMES.length);
@@ -107,6 +103,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
                     width: 32,
                     height: 32,
                     collected: false,
+                    isActive: true,
                     collectedBy: null
                 });
             }

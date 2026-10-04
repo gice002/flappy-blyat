@@ -2,6 +2,13 @@ const Lobby = require("../models/Lobby");
 const Player = require("../models/Player");
 const { generateMapsAndCheckpoints } = require("./mapGenerator");
 const GameEngine = require("./gameLoop");
+const {
+    CURSE_SPEED_MULTIPLIER,
+    CURSE_DURATION_MS,
+    BUCKET_DURATION_MS,
+    SHIELD_DURATION_MS,
+    INVINCIBLE_DURATION_MS
+} = require("../config/constants");
 
 class LobbyManager {
     constructor(io) {
@@ -277,7 +284,7 @@ class LobbyManager {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
             checkpoints: Array.from(lobby.checkpoints.values()),
-            itemBoxes: lobby.itemBoxes,
+            itemBoxes: (lobby.itemBoxes || []).map(b => this.serializeItemBox(b)),
             finishLineX: lobby.finishLineX,
             totalPipes: lobby.totalPipes,
             readyCount: 0,
@@ -367,7 +374,7 @@ class LobbyManager {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
             checkpoints: Array.from(lobby.checkpoints.values()),
-            itemBoxes: lobby.itemBoxes,
+            itemBoxes: (lobby.itemBoxes || []).map(b => this.serializeItemBox(b)),
             finishLineX: lobby.finishLineX,
             totalPipes: lobby.totalPipes,
             countdownSeconds: 3
@@ -438,7 +445,10 @@ class LobbyManager {
     }
 
     useItem(socket) {
-        const lobby = this.getLobbyByPlayerId(socket.id);
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
         if (!lobby || lobby.status !== "playing") return;
 
         const player = lobby.players.get(socket.id);
@@ -449,6 +459,16 @@ class LobbyManager {
 
         if (usedItem === "shield") {
             player.hasShield = true;
+            if (player.shieldTimer) clearTimeout(player.shieldTimer);
+
+            player.shieldTimer = setTimeout(() => {
+                player.hasShield = false;
+                player.shieldTimer = null;
+                this.io.to(lobby.Lobby_id).emit("shield_expired", {
+                    playerId: player.player_id
+                });
+            }, SHIELD_DURATION_MS);
+
             this.io.to(lobby.Lobby_id).emit("item_used", {
                 userId: player.player_id,
                 userName: player.name,
@@ -487,13 +507,30 @@ class LobbyManager {
             // Check if target has active Shield
             if (firstPlacePlayer.hasShield) {
                 firstPlacePlayer.hasShield = false; // Shield destroyed/consumed
+                if (firstPlacePlayer.shieldTimer) {
+                    clearTimeout(firstPlacePlayer.shieldTimer);
+                    firstPlacePlayer.shieldTimer = null;
+                }
+
+                // Grant 3-second Invincibility post-block
+                firstPlacePlayer.isInvincible = true;
+                if (firstPlacePlayer.invincibleTimer) clearTimeout(firstPlacePlayer.invincibleTimer);
+                firstPlacePlayer.invincibleTimer = setTimeout(() => {
+                    firstPlacePlayer.isInvincible = false;
+                    firstPlacePlayer.invincibleTimer = null;
+                    this.io.to(lobby.Lobby_id).emit("invincibility_expired", {
+                        playerId: firstPlacePlayer.player_id
+                    });
+                }, INVINCIBLE_DURATION_MS);
+
                 this.io.to(lobby.Lobby_id).emit("item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: usedItem,
                     targetId: firstPlacePlayer.player_id,
                     targetName: firstPlacePlayer.name,
-                    shieldBlocked: true
+                    shieldBlocked: true,
+                    invincible: true
                 });
                 return;
             }
@@ -506,16 +543,16 @@ class LobbyManager {
                     itemType: "ink",
                     targetId: firstPlacePlayer.player_id,
                     targetName: firstPlacePlayer.name,
-                    duration: 3000
+                    duration: BUCKET_DURATION_MS
                 });
             } else if (usedItem === "curse") {
-                // Reduce target player's X-axis speed by 10% for 3 seconds
-                firstPlacePlayer.speedMultiplier = 0.9;
+                // Reduce target player's X-axis speed by 35% for 6 seconds
+                firstPlacePlayer.speedMultiplier = CURSE_SPEED_MULTIPLIER;
                 if (firstPlacePlayer.curseTimer) clearTimeout(firstPlacePlayer.curseTimer);
                 firstPlacePlayer.curseTimer = setTimeout(() => {
                     firstPlacePlayer.speedMultiplier = 1.0;
                     firstPlacePlayer.curseTimer = null;
-                }, 3000);
+                }, CURSE_DURATION_MS);
 
                 this.io.to(lobby.Lobby_id).emit("item_used", {
                     userId: player.player_id,
@@ -523,7 +560,7 @@ class LobbyManager {
                     itemType: "curse",
                     targetId: firstPlacePlayer.player_id,
                     targetName: firstPlacePlayer.name,
-                    duration: 3000
+                    duration: CURSE_DURATION_MS
                 });
             }
         }
@@ -533,6 +570,44 @@ class LobbyManager {
         this.leaveLobby(socket);
     }
 
+    serializeItemBox(item) {
+        return {
+            id: item.id,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            collected: item.collected || false,
+            isActive: item.isActive !== false,
+            collectedBy: item.collectedBy || null
+        };
+    }
+
+    serializePlayer(p) {
+        return {
+            player_id: p.player_id,
+            name: p.name,
+            skin_ID: p.skin_ID,
+            hat_ID: p.hat_ID,
+            ready_status: p.ready_status,
+            x: p.x,
+            y: p.y,
+            velocityY: p.velocityY,
+            last_processed_input: p.last_processed_input,
+            is_finished: p.is_finished,
+            finish_time: p.finish_time,
+            last_pipe_passed: p.last_pipe_passed,
+            is_alive: p.is_alive,
+            crashed_at_pipe: p.crashed_at_pipe,
+            chain_index: p.chain_index,
+            wipes_caused: p.wipes_caused,
+            heldItem: p.heldItem,
+            hasShield: p.hasShield,
+            isInvincible: p.isInvincible,
+            speedMultiplier: p.speedMultiplier
+        };
+    }
+
     serializeLobby(lobby) {
         return {
             Lobby_id: lobby.Lobby_id,
@@ -540,7 +615,7 @@ class LobbyManager {
             host_ID: lobby.host_ID,
             amount_of_map: lobby.amount_of_map,
             status: lobby.status,
-            players: Array.from(lobby.players.values()),
+            players: Array.from(lobby.players.values()).map(p => this.serializePlayer(p)),
             leaderboard: lobby.leaderboard
         };
     }

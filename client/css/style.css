@@ -25,7 +25,7 @@ body {
     justify-content: center;
     align-items: center;
     position: relative;
-    background: url('../assets/flappybirdbg.png') repeat-x bottom center / cover;
+    background: url('../assets/images/flappybirdbg.png') repeat-x bottom center / cover;
 }
 
 .screen {
@@ -354,6 +354,17 @@ select {
     background: #d9534f;
     box-shadow: 0 3px 0 #962d2a;
     transition: transform 0.1s, box-shadow 0.1s;
+}
+
+#hud-inventory {
+    position: absolute;
+    top: 64px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+    z-index: 6;
 }
 
 .inventory-slot {

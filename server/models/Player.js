@@ -23,8 +23,11 @@ class Player {
         // Inventory & Power-Up System State
         this.heldItem = null;       // "ink" | "curse" | "shield" | null (Capacity: Max 1)
         this.hasShield = false;     // Buff: active barrier
+        this.isInvincible = false;  // Buff: 3s pipe immunity post-shield block
         this.speedMultiplier = 1.0; // Debuff: 0.9 when cursed, 1.0 normal
         this.curseTimer = null;
+        this.shieldTimer = null;
+        this.invincibleTimer = null;
     }
 
     resetForMatch(startX, startY, initialCheckpointId) {
@@ -42,9 +45,40 @@ class Player {
 
         this.heldItem = null;
         this.hasShield = false;
+        this.isInvincible = false;
         this.speedMultiplier = 1.0;
         if (this.curseTimer) clearTimeout(this.curseTimer);
         this.curseTimer = null;
+        if (this.shieldTimer) clearTimeout(this.shieldTimer);
+        this.shieldTimer = null;
+        if (this.invincibleTimer) clearTimeout(this.invincibleTimer);
+        this.invincibleTimer = null;
+    }
+
+    toJSON() {
+        return {
+            player_id: this.player_id,
+            checkpoint_id: this.checkpoint_id,
+            name: this.name,
+            skin_ID: this.skin_ID,
+            hat_ID: this.hat_ID,
+            ready_status: this.ready_status,
+            x: this.x,
+            y: this.y,
+            velocityY: this.velocityY,
+            last_processed_input: this.last_processed_input,
+            is_finished: this.is_finished,
+            finish_time: this.finish_time,
+            last_pipe_passed: this.last_pipe_passed,
+            is_alive: this.is_alive,
+            crashed_at_pipe: this.crashed_at_pipe,
+            chain_index: this.chain_index,
+            wipes_caused: this.wipes_caused,
+            heldItem: this.heldItem,
+            hasShield: this.hasShield,
+            isInvincible: this.isInvincible,
+            speedMultiplier: this.speedMultiplier
+        };
     }
 }
 

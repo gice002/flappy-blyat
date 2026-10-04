@@ -136,10 +136,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const hatSources = [
         "", // None
-        "assets/hats/hat_crown.png",
-        "assets/hats/hat_top.png",
-        "assets/hats/hat_cap.png",
-        "assets/hats/hat_viking.png"
+        "assets/images/hats/hat_crown.png",
+        "assets/images/hats/hat_top.png",
+        "assets/images/hats/hat_cap.png",
+        "assets/images/hats/hat_viking.png"
     ];
 
     // Update customization preview
@@ -568,7 +568,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (itemType) {
             inventoryEmptyLabel.style.display = "none";
             inventoryItemIcon.style.display = "block";
-            inventoryItemIcon.src = `assets/items/item_${itemType}.svg`;
+            const itemMap = {
+                ink: "assets/images/items/bucket.png",
+                shield: "assets/images/items/Absorption_JE3_BE3.png",
+                curse: "assets/images/items/Slowness_JE4.png"
+            };
+            inventoryItemIcon.src = itemMap[itemType] || `assets/images/items/item_${itemType}.svg`;
         } else {
             inventoryItemIcon.style.display = "none";
             inventoryEmptyLabel.style.display = "inline";
@@ -636,6 +641,41 @@ document.addEventListener("DOMContentLoaded", () => {
             physics.localHeldItem = data.acquiredItem;
             updateInventoryUI(data.acquiredItem);
         }
+        if (renderer && renderer.itemBoxes) {
+            const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
+            if (targetBox) {
+                targetBox.collected = true;
+                targetBox.isActive = false;
+            }
+        }
+    });
+
+    socket.on("item_respawned", (data) => {
+        if (renderer && renderer.itemBoxes && data && data.itemId) {
+            const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
+            if (targetBox) {
+                targetBox.collected = false;
+                targetBox.isActive = true;
+            }
+        }
+    });
+
+    socket.on("shield_expired", (data) => {
+        if (data && data.playerId === localPlayerId) {
+            physics.localHasShield = false;
+        }
+        if (physics.remotePlayers.has(data.playerId)) {
+            physics.remotePlayers.get(data.playerId).hasShield = false;
+        }
+    });
+
+    socket.on("invincibility_expired", (data) => {
+        if (data && data.playerId === localPlayerId) {
+            physics.localIsInvincible = false;
+        }
+        if (physics.remotePlayers.has(data.playerId)) {
+            physics.remotePlayers.get(data.playerId).isInvincible = false;
+        }
     });
 
     socket.on("item_used", (data) => {
@@ -650,7 +690,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!data.targetId) return; // Strict null check to prevent undefined target errors!
 
             if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
-                window.localInkUntil = Date.now() + (data.duration || 3000);
+                window.localInkUntil = Date.now() + (data.duration || 5000);
                 audioManager.playSFX("swooshing");
             }
 
@@ -660,6 +700,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (data.shieldBlocked && data.targetId === localPlayerId) {
                 audioManager.playSFX("point");
+                physics.localHasShield = false;
+                if (data.invincible) {
+                    physics.localIsInvincible = true;
+                }
             }
         } catch (err) {
             console.warn("[Client] Safely handled item_used listener error:", err);

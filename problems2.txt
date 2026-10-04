@@ -1,0 +1,147 @@
+=== PROBLEM ANALYSIS & CODE REVIEW SNIPPETS 2 ===
+
+1. GAME ENGINE INITIALIZATION (server/game/gameLoop.js:13-46)
+
+class GameEngine {
+    constructor(lobby, io) {
+        this.lobby = lobby;
+        this.io = io;
+        this.loopInterval = null;
+        this.inputQueues = new Map(); // socketId -> Array of { sequence, action, timestamp }
+        this.tickCount = 0;
+    }
+
+    start() {
+        this.lobby.status = "playing";
+        this.lobby.matchStartTime = Date.now();
+        this.lobby.finishTimerStart = null;
+        this.tickCount = 0;
+
+        // Reset all players to start checkpoint with strict horizontal offset in Chained Mode
+        const startCheckpoint = this.lobby.checkpoints.get(this.lobby.startCheckpointId);
+        const startX = startCheckpoint ? startCheckpoint.respawn_coordinate_x : 100;
+        const startY = startCheckpoint ? startCheckpoint.respawn_coordinate_y : 320;
+
+        let chainIdx = 0;
+        for (let player of this.lobby.players.values()) {
+            player.chain_index = chainIdx;
+            const xOffset = (this.lobby.mode_id === "flappy_chained") ? (chainIdx * CHAIN_SPACING_X) : 0;
+            player.resetForMatch(startX - xOffset, startY, this.lobby.startCheckpointId);
+            this.inputQueues.set(player.player_id, []);
+            chainIdx++;
+        }
+
+        this.loopInterval = setInterval(() => {
+            this.tick();
+        }, TICK_INTERVAL);
+    }
+
+
+2. THE BEGINNING OF THE GAME LOOP (server/game/gameLoop.js:61-105)
+
+    tick() {
+        if (this.lobby.status !== "playing") return;
+        this.tickCount++;
+
+        const now = Date.now();
+        let anyCollisionInChained = false;
+        let highestCheckpointInChained = this.lobby.startCheckpointId;
+
+        // Process physics for each player
+        for (let player of this.lobby.players.values()) {
+            if (player.is_finished) continue;
+
+            // Process inputs queued for this player
+            const inputs = this.inputQueues.get(player.player_id) || [];
+            while (inputs.length > 0) {
+                const input = inputs.shift();
+                if (input.action === "jump") {
+                    player.velocityY = JUMP_VELOCITY;
+                }
+                player.last_processed_input = input.sequence;
+            }
+
+            // Apply strict uniform forward X velocity & individual Y gravity (modified by Curse debuff speedMultiplier if active)
+            player.x += FORWARD_VELOCITY * (player.speedMultiplier || 1.0);
+            player.velocityY += GRAVITY;
+            player.y = Math.max(0, player.y + player.velocityY);
+
+            // Check pipe progress and update checkpoint
+            this.updatePlayerProgress(player);
+
+            // Collision check
+            const collided = this.checkCollisions(player);
+            if (collided) {
+                // Track culprit player who caused wipeout
+                player.wipes_caused = (player.wipes_caused || 0) + 1;
+
+                if (this.lobby.mode_id === "flappy_chained") {
+                    anyCollisionInChained = true;
+                    // Find highest checkpoint cleared by any player in chain
+                    for (let p of this.lobby.players.values()) {
+                        if (p.checkpoint_id) {
+                            highestCheckpointInChained = p.checkpoint_id;
+                        }
+                    }
+                } else {
+                    // Flappy Race mode: individual respawn
+                    this.respawnPlayer(player);
+                }
+            }
+
+
+3. INITIAL PLAYER OBJECT (server/models/Player.js & server/game/lobbyManager.js)
+
+--- Player Class & Constructor (server/models/Player.js:1-49) ---
+class Player {
+    constructor(player_id, name, skin_ID = 0, hat_ID = 0) {
+        this.player_id = player_id;
+        this.checkpoint_id = null; // FK to Checkpoint
+        this.name = name || `Bird_${player_id.substring(0, 4)}`;
+        this.skin_ID = skin_ID;
+        this.hat_ID = hat_ID;
+        this.ready_status = false;
+
+        // Runtime Physics & State
+        this.x = 100;
+        this.y = 320;
+        this.velocityY = 0;
+        this.last_processed_input = 0;
+        this.is_finished = false;
+        this.finish_time = null; // in seconds from match start
+        this.last_pipe_passed = 0;
+        this.is_alive = true;
+        this.crashed_at_pipe = null;
+        this.chain_index = 0;
+        this.wipes_caused = 0; // Mode B Chained mode wipe tracker
+
+        // Inventory & Power-Up System State
+        this.heldItem = null;       // "ink" | "curse" | "shield" | null (Capacity: Max 1)
+        this.hasShield = false;     // Buff: active barrier
+        this.speedMultiplier = 1.0; // Debuff: 0.9 when cursed, 1.0 normal
+        this.curseTimer = null;
+    }
+
+    resetForMatch(startX, startY, initialCheckpointId) {
+        this.x = startX;
+        this.y = startY;
+        this.velocityY = 0;
+        this.checkpoint_id = initialCheckpointId;
+        this.last_processed_input = 0;
+        this.is_finished = false;
+        this.finish_time = null;
+        this.last_pipe_passed = 0;
+        this.is_alive = true;
+        this.crashed_at_pipe = null;
+        this.wipes_caused = 0;
+
+        this.heldItem = null;
+        this.hasShield = false;
+        this.speedMultiplier = 1.0;
+        if (this.curseTimer) clearTimeout(this.curseTimer);
+        this.curseTimer = null;
+    }
+}
+
+--- Lobby Player Instantiation (server/game/lobbyManager.js:29 & 62) ---
+const player = new Player(socket.id, data.name, data.skin_ID || 0, data.hat_ID || 0);

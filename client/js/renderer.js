@@ -42,13 +42,20 @@ class CanvasRenderer {
 
     async loadAssetsConfig() {
         const sources = {
-            bird0: "assets/flappybird0.png",
-            bird1: "assets/flappybird1.png",
-            bird2: "assets/flappybird2.png",
-            bird3: "assets/flappybird3.png",
-            bg: "assets/flappybirdbg.png",
-            topPipe: "assets/toppipe.png",
-            bottomPipe: "assets/bottompipe.png"
+            bird0: "assets/images/flappybird0.png",
+            bird1: "assets/images/flappybird1.png",
+            bird2: "assets/images/flappybird2.png",
+            bird3: "assets/images/flappybird3.png",
+            bg: "assets/images/flappybirdbg.png",
+            topPipe: "assets/images/toppipe.png",
+            bottomPipe: "assets/images/bottompipe.png",
+            buble: "assets/images/buble.png",
+            slowness: "assets/images/items/Slowness_JE4.png",
+            bucket: "assets/images/items/bucket.png",
+            absorption: "assets/images/items/Absorption_JE3_BE3.png",
+            inbucket: "assets/images/items/inbucket.png",
+            checkpointflag: "assets/images/checkpointflag.png",
+            winflag: "assets/images/winflag.png"
         };
 
         for (let key in sources) {
@@ -87,6 +94,28 @@ class CanvasRenderer {
             }
         }
 
+        // Fallback for City theme if omitted in config
+        if (!this.themeImages["city"]) {
+            const cityBg = new Image();
+            cityBg.src = "assets/images/backgrounds/bg_city.png";
+            const topImg = new Image();
+            topImg.src = "assets/images/toppipe.png";
+            const botImg = new Image();
+            botImg.src = "assets/images/bottompipe.png";
+            this.themeImages["city"] = { bg: cityBg, topPipe: topImg, bottomPipe: botImg };
+        }
+
+        // Fallback for new_underwater_map theme
+        if (!this.themeImages["new_underwater_map"]) {
+            const uwBg = new Image();
+            uwBg.src = "assets/images/backgrounds/new_underwater_map.png";
+            const topImg = new Image();
+            topImg.src = "assets/images/pipes/toppipe_underwater.png";
+            const botImg = new Image();
+            botImg.src = "assets/images/pipes/bottompipe_underwater.png";
+            this.themeImages["new_underwater_map"] = { bg: uwBg, topPipe: topImg, bottomPipe: botImg };
+        }
+
         if (this.assetsConfig.hats) {
             for (let hat of this.assetsConfig.hats) {
                 if (hat.src) {
@@ -104,6 +133,14 @@ class CanvasRenderer {
                 itemImg.src = this.assetsConfig.items[key];
                 this.itemImages[key] = itemImg;
             }
+        }
+
+        if (!this.itemImages.buble) {
+            this.itemImages.buble = this.images.buble;
+        }
+
+        if (!this.itemImages.inbucket) {
+            this.itemImages.inbucket = this.images.inbucket;
         }
     }
 
@@ -175,17 +212,12 @@ class CanvasRenderer {
         const alpha = Math.min(1.0, remaining / 300);
         this.ctx.globalAlpha = alpha;
 
-        const splatImg = this.itemImages && this.itemImages.ink_splat;
-        if (splatImg && splatImg.complete) {
-            this.ctx.drawImage(splatImg, (this.width - 560) / 2, (this.height - 440) / 2, 560, 440);
+        const bucketOverlayImg = (this.itemImages && (this.itemImages.inbucket || this.itemImages.ink_splat)) || this.images.inbucket;
+        if (bucketOverlayImg && bucketOverlayImg.complete) {
+            this.ctx.drawImage(bucketOverlayImg, 0, 0, this.width, this.height);
         } else {
-            this.ctx.fillStyle = "#0c0b10";
-            this.ctx.beginPath();
-            this.ctx.arc(this.width / 2, this.height / 2, 170, 0, Math.PI * 2);
-            this.ctx.arc(this.width / 2 - 120, this.height / 2 - 60, 100, 0, Math.PI * 2);
-            this.ctx.arc(this.width / 2 + 130, this.height / 2 + 60, 110, 0, Math.PI * 2);
-            this.ctx.arc(this.width / 2 + 70, this.height / 2 - 120, 95, 0, Math.PI * 2);
-            this.ctx.fill();
+            this.ctx.fillStyle = "rgba(12, 11, 16, 0.85)";
+            this.ctx.fillRect(0, 0, this.width, this.height);
         }
         this.ctx.restore();
     }
@@ -354,7 +386,7 @@ class CanvasRenderer {
 
     renderItemBoxes() {
         for (let item of this.itemBoxes) {
-            if (item.collected) continue;
+            if (item.collected || item.isActive === false) continue;
             const screenX = item.x - this.cameraX;
             if (screenX < -50 || screenX > this.width + 50) continue;
 
@@ -448,7 +480,8 @@ class CanvasRenderer {
                 remote.name,
                 false,
                 remote.hasShield,
-                remote.speedMultiplier
+                remote.speedMultiplier,
+                remote.isInvincible
             );
         }
 
@@ -463,39 +496,61 @@ class CanvasRenderer {
             window.playerName || "YOU",
             true,
             this.physics.localHasShield,
-            this.physics.localSpeedMultiplier
+            this.physics.localSpeedMultiplier,
+            this.physics.localIsInvincible
         );
     }
 
-    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0) {
+    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0, isInvincible = false) {
         this.ctx.save();
 
-        // If Cursed (speedMultiplier < 1.0), draw purple aura glow around bird
+        // If Cursed (speedMultiplier < 1.0), draw Slowness_JE4 icon at bird's tail
         if (speedMultiplier < 1.0) {
             this.ctx.save();
-            this.ctx.fillStyle = "rgba(138, 43, 226, 0.4)";
-            this.ctx.beginPath();
-            this.ctx.arc(x + 17, y + 12, 26, 0, Math.PI * 2);
-            this.ctx.fill();
+            const slownessIcon = (this.itemImages && (this.itemImages.curse || this.itemImages.slowness)) || this.images.slowness;
+            if (slownessIcon && slownessIcon.complete) {
+                this.ctx.drawImage(slownessIcon, x - 12, y + 6, 16, 16);
+            } else {
+                this.ctx.fillStyle = "rgba(138, 43, 226, 0.7)";
+                this.ctx.beginPath();
+                this.ctx.arc(x - 4, y + 12, 6, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
             this.ctx.restore();
         }
 
-        // If Shield Active, draw Turquoise Barrier Shield Bubble around bird
+        // If Shield Active, draw buble.png encapsulating bird
         if (hasShield) {
             this.ctx.save();
-            this.ctx.strokeStyle = "#40e0d0";
-            this.ctx.lineWidth = 3;
-            this.ctx.beginPath();
-            this.ctx.arc(x + 17, y + 12, 24, 0, Math.PI * 2);
-            this.ctx.stroke();
-            this.ctx.fillStyle = "rgba(64, 224, 208, 0.25)";
-            this.ctx.fill();
-
-            const shieldIcon = this.itemImages && this.itemImages.shield;
-            if (shieldIcon && shieldIcon.complete) {
-                this.ctx.drawImage(shieldIcon, x + 17 - 12, y - 26, 24, 24);
+            const bubbleImg = (this.images && this.images.buble) || (this.itemImages && (this.itemImages.buble || this.itemImages.shield));
+            if (bubbleImg && bubbleImg.complete) {
+                this.ctx.drawImage(bubbleImg, x + 17 - 28, y + 12 - 28, 56, 56);
+            } else {
+                this.ctx.strokeStyle = "#40e0d0";
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(x + 17, y + 12, 24, 0, Math.PI * 2);
+                this.ctx.stroke();
+                this.ctx.fillStyle = "rgba(64, 224, 208, 0.25)";
+                this.ctx.fill();
             }
             this.ctx.restore();
+        }
+
+        // If Invincible (post-shield block), draw Blinking Golden Star Aura
+        if (isInvincible) {
+            const isBlinkVisible = Math.floor(Date.now() / 150) % 2 === 0;
+            if (isBlinkVisible) {
+                this.ctx.save();
+                this.ctx.strokeStyle = "#f1c40f";
+                this.ctx.lineWidth = 4;
+                this.ctx.beginPath();
+                this.ctx.arc(x + 17, y + 12, 28, 0, Math.PI * 2);
+                this.ctx.stroke();
+                this.ctx.fillStyle = "rgba(241, 196, 15, 0.4)";
+                this.ctx.fill();
+                this.ctx.restore();
+            }
         }
 
         let rotationAngle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (velocityY * 0.1)));
@@ -527,6 +582,7 @@ class CanvasRenderer {
 
         let labelName = name;
         if (speedMultiplier < 1.0) labelName += " [SLOW]";
+        if (isInvincible) labelName += " [STAR]";
         this.ctx.strokeText(labelName, x + 17, y - 10);
         this.ctx.fillText(labelName, x + 17, y - 10);
 
@@ -587,6 +643,25 @@ class CanvasRenderer {
 
         const totalDist = Math.max(1, this.finishLineX - 100);
 
+        // Render Checkpoint Flags at relative positions along the track
+        if (this.checkpoints && this.checkpoints.length > 0) {
+            const chkFlagImg = (this.images && this.images.checkpointflag) || (this.itemImages && this.itemImages.checkpointflag);
+            for (let chk of this.checkpoints) {
+                const chkX = chk.respawn_coordinate_x || 0;
+                if (chkX <= 100 || chkX >= this.finishLineX) continue;
+
+                const ratio = Math.max(0, Math.min(1, (chkX - 100) / totalDist));
+                const flagX = trackX + (ratio * (trackWidth - 20));
+
+                if (chkFlagImg && chkFlagImg.complete) {
+                    this.ctx.drawImage(chkFlagImg, flagX, trackY - 14, 16, 16);
+                } else {
+                    this.ctx.fillStyle = "#3993d0";
+                    this.ctx.fillRect(flagX + 6, trackY - 4, 4, 18);
+                }
+            }
+        }
+
         for (let i = 0; i < playersList.length; i++) {
             const p = playersList[i];
             const ratio = Math.max(0, Math.min(1, (p.x - 100) / totalDist));
@@ -615,9 +690,14 @@ class CanvasRenderer {
             this.ctx.fillText(rankStr, iconX + 8, iconY - 4);
         }
 
-        // Finish Line Flag Icon at end of track
-        this.ctx.fillStyle = "#f7d51d";
-        this.ctx.fillRect(trackX + trackWidth - 6, trackY - 4, 6, 22);
+        // Finish Line Flag Icon at 100% mark (far right end of track)
+        const winFlagImg = (this.images && this.images.winflag) || (this.itemImages && this.itemImages.winflag);
+        if (winFlagImg && winFlagImg.complete) {
+            this.ctx.drawImage(winFlagImg, trackX + trackWidth - 16, trackY - 14, 20, 20);
+        } else {
+            this.ctx.fillStyle = "#f7d51d";
+            this.ctx.fillRect(trackX + trackWidth - 6, trackY - 4, 6, 22);
+        }
 
         this.ctx.restore();
     }

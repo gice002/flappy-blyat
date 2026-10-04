@@ -21,6 +21,10 @@ class PhysicsEngine {
         // Interpolated remote players state map: playerId -> playerObj
         this.remotePlayers = new Map();
         this.isFrozen = false;
+        this.localSpeedMultiplier = 1.0;
+        this.localHasShield = false;
+        this.localIsInvincible = false;
+        this.localHeldItem = null;
     }
 
     setLocalPlayerId(id) {
@@ -40,6 +44,10 @@ class PhysicsEngine {
         this.inputSequence = 0;
         this.pendingInputs = [];
         this.isFrozen = false;
+        this.localSpeedMultiplier = 1.0;
+        this.localHasShield = false;
+        this.localIsInvincible = false;
+        this.localHeldItem = null;
         this.clearRemotePlayers(); // Enforce strict state wipe on local reset
     }
 
@@ -65,7 +73,8 @@ class PhysicsEngine {
     // Step local physics frame (at 60 FPS)
     updateLocalPhysics() {
         if (this.isFrozen) return;
-        this.predictedState.x += this.forwardVelocity;
+        const speedMult = (this.localSpeedMultiplier !== undefined && this.localSpeedMultiplier !== null) ? this.localSpeedMultiplier : 1.0;
+        this.predictedState.x += this.forwardVelocity * speedMult;
         this.predictedState.velocityY += this.gravity;
         this.predictedState.y = Math.max(0, this.predictedState.y + this.predictedState.velocityY);
 
@@ -91,6 +100,11 @@ class PhysicsEngine {
 
         for (let serverPlayer of snapshot.players) {
             if (serverPlayer.player_id === this.localPlayerId) {
+                this.localHasShield = serverPlayer.hasShield || false;
+                this.localIsInvincible = serverPlayer.isInvincible || false;
+                this.localHeldItem = serverPlayer.heldItem || null;
+                this.localSpeedMultiplier = (serverPlayer.speedMultiplier !== undefined && serverPlayer.speedMultiplier !== null) ? serverPlayer.speedMultiplier : 1.0;
+
                 // Server baseline position
                 let reconciledX = serverPlayer.x;
                 let reconciledY = serverPlayer.y;
@@ -100,20 +114,16 @@ class PhysicsEngine {
                 const lastAck = serverPlayer.last_processed_input || 0;
                 this.pendingInputs = this.pendingInputs.filter(input => input.sequence > lastAck);
 
+                const speedMult = this.localSpeedMultiplier;
+
                 // Replay unacknowledged inputs on top of server baseline
                 for (let input of this.pendingInputs) {
                     if (input.action === "jump") {
                         reconciledVY = this.jumpVelocity;
                     }
-                    reconciledX += this.forwardVelocity;
+                    reconciledX += this.forwardVelocity * speedMult;
                     reconciledVY += this.gravity;
                     reconciledY = Math.max(0, reconciledY + reconciledVY);
-                }
-
-                if (serverPlayer.player_id === this.localPlayerId) {
-                    this.localHasShield = serverPlayer.hasShield;
-                    this.localHeldItem = serverPlayer.heldItem;
-                    this.localSpeedMultiplier = serverPlayer.speedMultiplier;
                 }
                 // Smooth correction / Reconciliation threshold
                 const diffX = Math.abs(this.predictedState.x - reconciledX);
@@ -149,6 +159,7 @@ class PhysicsEngine {
                         finish_time: serverPlayer.finish_time,
                         chain_index: serverPlayer.chain_index,
                         hasShield: serverPlayer.hasShield,
+                        isInvincible: serverPlayer.isInvincible,
                         heldItem: serverPlayer.heldItem,
                         speedMultiplier: serverPlayer.speedMultiplier
                     };
@@ -164,6 +175,7 @@ class PhysicsEngine {
                     remote.finish_time = serverPlayer.finish_time;
                     remote.chain_index = serverPlayer.chain_index;
                     remote.hasShield = serverPlayer.hasShield;
+                    remote.isInvincible = serverPlayer.isInvincible;
                     remote.heldItem = serverPlayer.heldItem;
                     remote.speedMultiplier = serverPlayer.speedMultiplier;
                 }

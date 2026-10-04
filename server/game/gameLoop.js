@@ -1,14 +1,16 @@
 const LeaderboardEntry = require("../models/Leaderboard");
-
-const TICK_RATE = 60; // 60 FPS server physics loop
-const TICK_INTERVAL = 1000 / TICK_RATE;
-const BIRD_WIDTH = 34;
-const BIRD_HEIGHT = 24;
-const GROUND_Y = 616; // 640 - 24
-const GRAVITY = 0.4;
-const JUMP_VELOCITY = -6;
-const FORWARD_VELOCITY = 2.0;
-const CHAIN_SPACING_X = 60; // Fixed horizontal spacing offset for Chained Mode
+const {
+    TICK_RATE,
+    TICK_INTERVAL,
+    BIRD_WIDTH,
+    BIRD_HEIGHT,
+    GROUND_Y,
+    GRAVITY,
+    JUMP_VELOCITY,
+    FORWARD_VELOCITY,
+    CHAIN_SPACING_X,
+    ITEM_RESPAWN_MS
+} = require("../config/constants");
 
 class GameEngine {
     constructor(lobby, io) {
@@ -53,7 +55,7 @@ class GameEngine {
 
     queueInput(playerId, inputData) {
         const queue = this.inputQueues.get(playerId);
-        if (queue) {
+        if (queue && inputData) {
             queue.push(inputData);
         }
     }
@@ -74,10 +76,12 @@ class GameEngine {
             const inputs = this.inputQueues.get(player.player_id) || [];
             while (inputs.length > 0) {
                 const input = inputs.shift();
+                if (!input) continue; // CRITICAL FIX: Ignore null or undefined inputs
+
                 if (input.action === "jump") {
                     player.velocityY = JUMP_VELOCITY;
                 }
-                player.last_processed_input = input.sequence;
+                player.last_processed_input = input.sequence || player.last_processed_input;
             }
 
             // Apply strict uniform forward X velocity & individual Y gravity (modified by Curse debuff speedMultiplier if active)
@@ -188,6 +192,11 @@ class GameEngine {
             return true;
         }
 
+        // Invincibility state bypasses pipe collisions completely
+        if (player.isInvincible) {
+            return false;
+        }
+
         let allPipes = [];
         for (let mapData of this.lobby.maps) {
             allPipes.push(...mapData.pipes);
@@ -217,11 +226,12 @@ class GameEngine {
         const birdBox = { x: player.x, y: player.y, width: BIRD_WIDTH, height: BIRD_HEIGHT };
 
         for (let item of this.lobby.itemBoxes) {
-            if (item.collected) continue;
+            if (item.collected || item.isActive === false) continue;
 
             const itemBox = { x: item.x, y: item.y, width: item.width, height: item.height };
             if (this.rectIntersect(birdBox, itemBox)) {
                 item.collected = true;
+                item.isActive = false;
                 item.collectedBy = player.player_id;
 
                 const itemTypes = ["ink", "curse", "shield"];
@@ -233,6 +243,18 @@ class GameEngine {
                     playerId: player.player_id,
                     acquiredItem: acquiredItem
                 });
+
+                // Exactly 3 seconds (3000ms) after being collected, the box must reactivate
+                if (item.respawnTimer) clearTimeout(item.respawnTimer);
+                item.respawnTimer = setTimeout(() => {
+                    item.collected = false;
+                    item.isActive = true;
+                    item.collectedBy = null;
+                    item.respawnTimer = null;
+                    this.io.to(this.lobby.Lobby_id).emit("item_respawned", {
+                        itemId: item.id
+                    });
+                }, ITEM_RESPAWN_MS);
             }
         }
     }
@@ -289,6 +311,7 @@ class GameEngine {
                 chain_index: p.chain_index,
                 heldItem: p.heldItem,
                 hasShield: p.hasShield,
+                isInvincible: p.isInvincible,
                 speedMultiplier: p.speedMultiplier
             });
         }
@@ -299,11 +322,22 @@ class GameEngine {
             remainingCountdown = Math.max(0, Math.ceil(10 - elapsed));
         }
 
+        const sanitizedItemBoxes = (this.lobby.itemBoxes || []).map(item => ({
+            id: item.id,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            height: item.height,
+            collected: item.collected || false,
+            isActive: item.isActive !== false,
+            collectedBy: item.collectedBy || null
+        }));
+
         this.io.to(this.lobby.Lobby_id).emit("game_snapshot", {
             tick: this.tickCount,
             serverTime: Date.now(),
             players: playersSnapshot,
-            itemBoxes: this.lobby.itemBoxes,
+            itemBoxes: sanitizedItemBoxes,
             finishCountdown: remainingCountdown
         });
     }

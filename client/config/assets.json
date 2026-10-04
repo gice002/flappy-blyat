@@ -1,74 +1,83 @@
 {
   "hats": [
     { "id": "none", "name": "None", "src": "" },
-    { "id": "crown", "name": "Golden Crown", "src": "assets/hats/hat_crown.png" },
-    { "id": "top_hat", "name": "Top Hat", "src": "assets/hats/hat_top.png" },
-    { "id": "cap", "name": "Red Baseball Cap", "src": "assets/hats/hat_cap.png" },
-    { "id": "viking", "name": "Viking Helmet", "src": "assets/hats/hat_viking.png" }
+    { "id": "crown", "name": "Golden Crown", "src": "assets/images/hats/hat_crown.png" },
+    { "id": "top_hat", "name": "Top Hat", "src": "assets/images/hats/hat_top.png" },
+    { "id": "cap", "name": "Red Baseball Cap", "src": "assets/images/hats/hat_cap.png" },
+    { "id": "viking", "name": "Viking Helmet", "src": "assets/images/hats/hat_viking.png" }
   ],
   "map_themes": [
     {
       "theme_id": "classic_day",
       "name": "Classic City (Day)",
-      "bg_src": "assets/flappybirdbg.png",
-      "pipe_top_src": "assets/toppipe.png",
-      "pipe_bottom_src": "assets/bottompipe.png"
+      "bg_src": "assets/images/flappybirdbg.png",
+      "pipe_top_src": "assets/images/toppipe.png",
+      "pipe_bottom_src": "assets/images/bottompipe.png"
     },
     {
       "theme_id": "city_night",
       "name": "Neon City (Night)",
-      "bg_src": "assets/flappybirdbg_night.png",
-      "pipe_top_src": "assets/toppipe_night.png",
-      "pipe_bottom_src": "assets/bottompipe_night.png"
+      "bg_src": "assets/images/flappybirdbg_night.png",
+      "pipe_top_src": "assets/images/toppipe_night.png",
+      "pipe_bottom_src": "assets/images/bottompipe_night.png"
     },
     {
       "theme_id": "city_dusk",
       "name": "Sunset City (Dusk)",
-      "bg_src": "assets/flappybirdbg_dusk.png",
-      "pipe_top_src": "assets/toppipe_dusk.png",
-      "pipe_bottom_src": "assets/bottompipe_dusk.png"
+      "bg_src": "assets/images/flappybirdbg_dusk.png",
+      "pipe_top_src": "assets/images/toppipe_dusk.png",
+      "pipe_bottom_src": "assets/images/bottompipe_dusk.png"
     },
     {
-      "theme_id": "underwater",
-      "name": "Underwater Realm",
-      "bg_src": "assets/backgrounds/bg_underwater.png",
-      "pipe_top_src": "assets/pipes/toppipe_underwater.png",
-      "pipe_bottom_src": "assets/pipes/bottompipe_underwater.png"
+      "theme_id": "new_underwater_map",
+      "name": "New Underwater Realm",
+      "bg_src": "assets/images/backgrounds/new_underwater_map.png",
+      "pipe_top_src": "assets/images/pipes/toppipe_underwater.png",
+      "pipe_bottom_src": "assets/images/pipes/bottompipe_underwater.png"
     },
     {
       "theme_id": "volcano",
       "name": "Volcano Inferno",
-      "bg_src": "assets/backgrounds/bg_volcano.png",
-      "pipe_top_src": "assets/pipes/toppipe_volcano.png",
-      "pipe_bottom_src": "assets/pipes/bottompipe_volcano.png"
+      "bg_src": "assets/images/backgrounds/bg_volcano.png",
+      "pipe_top_src": "assets/images/pipes/toppipe_volcano.png",
+      "pipe_bottom_src": "assets/images/pipes/bottompipe_volcano.png"
     },
     {
       "theme_id": "snowy",
       "name": "Snowy Tundra",
-      "bg_src": "assets/backgrounds/bg_snowy.png",
-      "pipe_top_src": "assets/pipes/toppipe_snowy.png",
-      "pipe_bottom_src": "assets/pipes/bottompipe_snowy.png"
+      "bg_src": "assets/images/backgrounds/bg_snowy.png",
+      "pipe_top_src": "assets/images/pipes/toppipe_snowy.png",
+      "pipe_bottom_src": "assets/images/pipes/bottompipe_snowy.png"
     },
     {
       "theme_id": "candyland",
       "name": "Candy Land",
-      "bg_src": "assets/backgrounds/bg_candyland.png",
-      "pipe_top_src": "assets/pipes/toppipe_candyland.png",
-      "pipe_bottom_src": "assets/pipes/bottompipe_candyland.png"
+      "bg_src": "assets/images/backgrounds/bg_candyland.png",
+      "pipe_top_src": "assets/images/pipes/toppipe_candyland.png",
+      "pipe_bottom_src": "assets/images/pipes/bottompipe_candyland.png"
     },
     {
       "theme_id": "desert",
       "name": "Desert Dunes",
-      "bg_src": "assets/backgrounds/bg_desert.png",
-      "pipe_top_src": "assets/pipes/toppipe_desert.png",
-      "pipe_bottom_src": "assets/pipes/bottompipe_desert.png"
+      "bg_src": "assets/images/backgrounds/bg_desert.png",
+      "pipe_top_src": "assets/images/pipes/toppipe_desert.png",
+      "pipe_bottom_src": "assets/images/pipes/bottompipe_desert.png"
+    },
+    {
+      "theme_id": "city",
+      "name": "Metropolis City",
+      "bg_src": "assets/images/backgrounds/bg_city.png",
+      "pipe_top_src": "assets/images/toppipe.png",
+      "pipe_bottom_src": "assets/images/bottompipe.png"
     }
   ],
   "items": {
-    "box": "assets/items/item_box.svg",
-    "ink": "assets/items/item_ink.svg",
-    "curse": "assets/items/item_curse.svg",
-    "shield": "assets/items/item_shield.svg",
-    "ink_splat": "assets/items/ink_splat.svg"
+    "box": "assets/images/items/item_box.svg",
+    "ink": "assets/images/items/bucket.png",
+    "curse": "assets/images/items/Slowness_JE4.png",
+    "shield": "assets/images/items/Absorption_JE3_BE3.png",
+    "buble": "assets/images/buble.png",
+    "inbucket": "assets/images/items/inbucket.png",
+    "ink_splat": "assets/images/items/inbucket.png"
   }
 }

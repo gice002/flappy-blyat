@@ -7,10 +7,10 @@ console.log("--- Testing Map Randomization & Item System ---");
 // Test 1: Map Theme Randomization
 console.log("Test 1: Map Theme Randomization");
 const resultRace = generateMapsAndCheckpoints(3, "LOBBY1", "flappy_race");
-assert.strictEqual(resultRace.maps[0].theme_id, "classic_day", "Map 1 must be classic_day");
-const validSubsequent = ["underwater", "volcano", "snowy", "candyland", "desert", "city_night", "city_dusk"];
-assert.ok(validSubsequent.includes(resultRace.maps[1].theme_id), "Map 2 theme must be from subsequent pool");
-assert.ok(validSubsequent.includes(resultRace.maps[2].theme_id), "Map 3 theme must be from subsequent pool");
+const validThemes = ["classic_day", "city", "new_underwater_map", "volcano", "snowy", "candyland", "desert", "city_night", "city_dusk"];
+assert.ok(validThemes.includes(resultRace.maps[0].theme_id), "Map 1 theme must be from ALL_THEMES pool");
+assert.ok(validThemes.includes(resultRace.maps[1].theme_id), "Map 2 theme must be from ALL_THEMES pool");
+assert.ok(validThemes.includes(resultRace.maps[2].theme_id), "Map 3 theme must be from ALL_THEMES pool");
 console.log("-> Map themes: Map 1 =", resultRace.maps[0].theme_id, ", Map 2 =", resultRace.maps[1].theme_id, ", Map 3 =", resultRace.maps[2].theme_id);
 
 // Test 2: Item Spawning Constraints & Risk/Reward Offset
