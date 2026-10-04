@@ -116,6 +116,16 @@
                     <div class="hud-panel" id="hud-map-progress" style="display: none;">
                         <span id="hud-pipe-count">Pipes Cleared: 0 / 10</span>
                     </div>
+
+                    <!-- Inventory Slot UI -->
+                    <div class="hud-panel" id="hud-inventory" style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+                        <div class="inventory-slot" id="inventory-slot">
+                            <span id="inventory-empty-label">EMPTY</span>
+                            <img id="inventory-item-icon" src="" style="display: none; width: 32px; height: 32px;" alt="Item" />
+                        </div>
+                        <div style="font-size: 8px; margin-top: 4px; color: #f7d51d; text-shadow: 1px 1px 0 #000;">[F] USE</div>
+                    </div>
+
                     <div class="hud-panel" style="margin-left: auto;">
                         <button class="btn btn-danger btn-small" id="btn-in-game-exit">EXIT MATCH</button>
                     </div>

@@ -80,8 +80,8 @@ class GameEngine {
                 player.last_processed_input = input.sequence;
             }
 
-            // Apply strict uniform forward X velocity & individual Y gravity
-            player.x += FORWARD_VELOCITY;
+            // Apply strict uniform forward X velocity & individual Y gravity (modified by Curse debuff speedMultiplier if active)
+            player.x += FORWARD_VELOCITY * (player.speedMultiplier || 1.0);
             player.velocityY += GRAVITY;
             player.y = Math.max(0, player.y + player.velocityY);
 
@@ -211,6 +211,9 @@ class GameEngine {
     }
 
     checkItemBoxCollisions(player) {
+        // Capacity: Players can hold a maximum of 1 item at a time
+        if (player.heldItem !== null) return;
+
         const birdBox = { x: player.x, y: player.y, width: BIRD_WIDTH, height: BIRD_HEIGHT };
 
         for (let item of this.lobby.itemBoxes) {
@@ -221,10 +224,14 @@ class GameEngine {
                 item.collected = true;
                 item.collectedBy = player.player_id;
 
+                const itemTypes = ["ink", "curse", "shield"];
+                const acquiredItem = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+                player.heldItem = acquiredItem;
+
                 this.io.to(this.lobby.Lobby_id).emit("item_collected", {
                     itemId: item.id,
                     playerId: player.player_id,
-                    effect: null
+                    acquiredItem: acquiredItem
                 });
             }
         }
@@ -279,7 +286,10 @@ class GameEngine {
                 finish_time: p.finish_time,
                 last_pipe_passed: p.last_pipe_passed,
                 checkpoint_id: p.checkpoint_id,
-                chain_index: p.chain_index
+                chain_index: p.chain_index,
+                heldItem: p.heldItem,
+                hasShield: p.hasShield,
+                speedMultiplier: p.speedMultiplier
             });
         }
 

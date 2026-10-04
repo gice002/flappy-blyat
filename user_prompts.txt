@@ -323,4 +323,45 @@ Ensure the README includes the following sections:
 
 Please output the code fixes first, followed by the asset guidelines, and finally the complete raw markdown for the README.md.
 
+================================================================================
+PROMPT 12
+================================================================================
+Act as a Senior Full-Stack Game Developer. I have added new map assets and item images to the project. It is time to implement a dynamic Map Randomization system and a Mario Kart-style Item system.
+
+Please update the necessary server (gameManager.js) and client (client.js, ui.js, rendering logic) files with the following detailed requirements:
+
+1. Map Theme Randomization
+
+    Level Progression: The very first map/stage of a match MUST always use the default "basic" theme.
+
+    Subsequent Levels: For the second map and beyond, the server must randomly select a theme (e.g., lava, underwater) from the available assets pool.
+
+2. Item Spawning System (Server-Side)
+
+    Mode Constraint: Items MUST ONLY spawn in the standard "Flappy Race" mode. Do not generate items in "Flappy Chained" mode.
+
+    Risk/Reward Placement: Generate item boxes/hitboxes in the space between the pipes on the X-axis. However, intentionally offset their Y-axis position so they are not directly on the optimal safe flight path. Players should have to take a slight risk to grab them.
+
+3. Inventory UI & Input (Client-Side)
+
+    Capacity: Players can hold a maximum of 1 item at a time.
+
+    UI Display: Create an inventory slot UI (e.g., bottom-center or near the top-left progress bar) that displays the actual image asset of the currently held item.
+
+    Keybind: Bind the F key to trigger the item. Ensure F does not trigger default browser behaviors.
+
+4. Item Effects & Networking Logic
+When a player uses an item, process the following logic. Both duration-based items last for 3 seconds.
+
+    Targeting Rule: Both "Ink" and "Curse" target the player currently in 1st place (calculated by max X-position). CRITICAL: If the player who is currently in 1st place uses Ink or Curse, the item is consumed with NO effect (wasted).
+
+    Item 1: Ink (หมึก): If successful, broadcast an effect to the target. The target's client must render a large ink splat image covering the center of their screen for 3 seconds, obstructing their view.
+
+    Item 2: Curse (สาป): If successful, reduce the target player's X-axis forward speed by 10% for 3 seconds. Ensure the server handles this velocity change securely to prevent desync.
+
+    Item 3: Shield (โล่): Applies a buff to the user. It completely blocks the next incoming negative effect (Ink or Curse). Once hit, the shield is destroyed. While active, the client must render a small shield icon/image overlaid or attached directly to that player's bird sprite so others can see they are protected.
+
+Please provide the modular code updates to handle the spawning, collision detection, socket events for attacks, and the rendering logic for the new UI and visual effects.
+
+
 

@@ -1,27 +1,27 @@
 const MapData = require("../models/Map");
 const Checkpoint = require("../models/Checkpoint");
 
-const THEMES = [
-    "classic_day",
+const DEFAULT_THEME = "classic_day";
+const SUBSEQUENT_THEMES = [
     "underwater",
     "volcano",
     "snowy",
     "candyland",
-    "desert"
+    "desert",
+    "city_night",
+    "city_dusk"
 ];
 
-function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
+function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race") {
     const maps = [];
     const checkpoints = new Map();
     const itemBoxes = [];
 
     const pipeWidth = 64;
     const pipeHeight = 512;
-    const boardHeight = 640;
     const groundY = 616;
 
     // BALANCED GAMEPLAY PARAMETERS
-    // Increased horizontal distance between pipes (from 250px to 380px) for forgiving item gameplay
     const pipeSpacingX = 380;
     const startX = 600;
 
@@ -49,8 +49,12 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
         const itemXList = [];
         const itemYList = [];
 
-        // Pick theme from registered themes
-        const themeId = THEMES[(m - 1) % THEMES.length];
+        // 1. Map Theme Randomization: Map 1 MUST be default classic_day, subsequent maps are random from pool
+        let themeId = DEFAULT_THEME;
+        if (m > 1) {
+            const randomIndex = Math.floor(Math.random() * SUBSEQUENT_THEMES.length);
+            themeId = SUBSEQUENT_THEMES[randomIndex];
+        }
 
         const mapSpawnX = (m === 1) ? 100 : (currentX - pipeSpacingX + 100);
         const mapSpawnY = 320;
@@ -62,7 +66,6 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
             const gapSize = Math.floor(Math.random() * (MAX_GAP - MIN_GAP + 1)) + MIN_GAP;
 
             // Calculate safe top pipe Y position
-            // Min top pipe visible height: 60px, Max top pipe visible height: boardHeight - gapSize - 60px
             const maxVisibleTopHeight = groundY - gapSize - 60;
             const minVisibleTopHeight = 60;
             const visibleTopHeight = Math.floor(Math.random() * (maxVisibleTopHeight - minVisibleTopHeight + 1)) + minVisibleTopHeight;
@@ -84,10 +87,16 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
                 gapSize: gapSize
             });
 
-            // Add item boxes in spacious gap between pipes (e.g. pipe 3, 5, 8 of each map)
-            if (i === 3 || i === 5 || i === 8) {
+            // 2. Item Spawning: Items MUST ONLY spawn in "flappy_race" mode
+            if (modeId !== "flappy_chained" && (i === 3 || i === 5 || i === 8)) {
                 const itemX = currentX + Math.floor(pipeSpacingX / 2);
-                const itemY = topY + pipeHeight + Math.floor(gapSize / 2) - 16;
+
+                // Risk/Reward Placement: Offset Y position to top/bottom pipe edges away from safe center
+                const isTopRisk = Math.random() < 0.5;
+                const itemY = isTopRisk 
+                    ? (topY + pipeHeight + 20)      // Near top pipe rim (risk)
+                    : (bottomY - 32 - 20);           // Near bottom pipe rim (risk)
+
                 itemXList.push(itemX);
                 itemYList.push(itemY);
 

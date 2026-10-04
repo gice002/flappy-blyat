@@ -88,6 +88,10 @@ io.on("connection", (socket) => {
         lobbyManager.returnToLobby(socket);
     });
 
+    socket.on("use_item", () => {
+        lobbyManager.useItem(socket);
+    });
+
     socket.on("disconnect", () => {
         console.log(`[Socket] Client disconnected: ${socket.id}`);
         lobbyManager.handleDisconnect(socket);

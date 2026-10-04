@@ -96,6 +96,15 @@ class CanvasRenderer {
                 }
             }
         }
+
+        this.itemImages = {};
+        if (this.assetsConfig.items) {
+            for (let key in this.assetsConfig.items) {
+                const itemImg = new Image();
+                itemImg.src = this.assetsConfig.items[key];
+                this.itemImages[key] = itemImg;
+            }
+        }
     }
 
     setGameData(maps, checkpoints, itemBoxes, finishLineX, modeId) {
@@ -154,6 +163,31 @@ class CanvasRenderer {
 
         // 7. Render Top-Left Racing Progress Bar UI
         this.renderRacingProgressBar();
+
+        // 8. Render Ink Splat Attack Screen Overlay
+        this.renderInkOverlay();
+    }
+
+    renderInkOverlay() {
+        if (!window.localInkUntil || Date.now() > window.localInkUntil) return;
+        this.ctx.save();
+        const remaining = window.localInkUntil - Date.now();
+        const alpha = Math.min(1.0, remaining / 300);
+        this.ctx.globalAlpha = alpha;
+
+        const splatImg = this.itemImages && this.itemImages.ink_splat;
+        if (splatImg && splatImg.complete) {
+            this.ctx.drawImage(splatImg, (this.width - 560) / 2, (this.height - 440) / 2, 560, 440);
+        } else {
+            this.ctx.fillStyle = "#0c0b10";
+            this.ctx.beginPath();
+            this.ctx.arc(this.width / 2, this.height / 2, 170, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 - 120, this.height / 2 - 60, 100, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 + 130, this.height / 2 + 60, 110, 0, Math.PI * 2);
+            this.ctx.arc(this.width / 2 + 70, this.height / 2 - 120, 95, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        this.ctx.restore();
     }
 
     getCurrentMapTheme() {
@@ -329,16 +363,21 @@ class CanvasRenderer {
             const floatOffset = Math.sin(performance.now() / 200) * 4;
             const itemY = item.y + floatOffset;
 
-            this.ctx.fillStyle = "#f7d51d";
-            this.ctx.fillRect(screenX, itemY, 32, 32);
-            this.ctx.strokeStyle = "#000";
-            this.ctx.lineWidth = 3;
-            this.ctx.strokeRect(screenX, itemY, 32, 32);
+            const boxImg = this.itemImages && this.itemImages.box;
+            if (boxImg && boxImg.complete) {
+                this.ctx.drawImage(boxImg, screenX, itemY, 32, 32);
+            } else {
+                this.ctx.fillStyle = "#f7d51d";
+                this.ctx.fillRect(screenX, itemY, 32, 32);
+                this.ctx.strokeStyle = "#000";
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeRect(screenX, itemY, 32, 32);
 
-            this.ctx.fillStyle = "#000";
-            this.ctx.font = "16px 'Press Start 2P'";
-            this.ctx.textAlign = "center";
-            this.ctx.fillText("?", screenX + 16, itemY + 23);
+                this.ctx.fillStyle = "#000";
+                this.ctx.font = "16px 'Press Start 2P'";
+                this.ctx.textAlign = "center";
+                this.ctx.fillText("?", screenX + 16, itemY + 23);
+            }
 
             this.ctx.restore();
         }
@@ -407,7 +446,9 @@ class CanvasRenderer {
                 remote.skin_ID,
                 remote.hat_ID,
                 remote.name,
-                false
+                false,
+                remote.hasShield,
+                remote.speedMultiplier
             );
         }
 
@@ -420,12 +461,42 @@ class CanvasRenderer {
             window.playerSkinId || 0,
             window.playerHatId || 0,
             window.playerName || "YOU",
-            true
+            true,
+            this.physics.localHasShield,
+            this.physics.localSpeedMultiplier
         );
     }
 
-    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal) {
+    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0) {
         this.ctx.save();
+
+        // If Cursed (speedMultiplier < 1.0), draw purple aura glow around bird
+        if (speedMultiplier < 1.0) {
+            this.ctx.save();
+            this.ctx.fillStyle = "rgba(138, 43, 226, 0.4)";
+            this.ctx.beginPath();
+            this.ctx.arc(x + 17, y + 12, 26, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+
+        // If Shield Active, draw Turquoise Barrier Shield Bubble around bird
+        if (hasShield) {
+            this.ctx.save();
+            this.ctx.strokeStyle = "#40e0d0";
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(x + 17, y + 12, 24, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.fillStyle = "rgba(64, 224, 208, 0.25)";
+            this.ctx.fill();
+
+            const shieldIcon = this.itemImages && this.itemImages.shield;
+            if (shieldIcon && shieldIcon.complete) {
+                this.ctx.drawImage(shieldIcon, x + 17 - 12, y - 26, 24, 24);
+            }
+            this.ctx.restore();
+        }
 
         let rotationAngle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (velocityY * 0.1)));
 
@@ -453,8 +524,11 @@ class CanvasRenderer {
         this.ctx.lineWidth = 3;
         this.ctx.font = "8px 'Press Start 2P'";
         this.ctx.textAlign = "center";
-        this.ctx.strokeText(name, x + 17, y - 10);
-        this.ctx.fillText(name, x + 17, y - 10);
+
+        let labelName = name;
+        if (speedMultiplier < 1.0) labelName += " [SLOW]";
+        this.ctx.strokeText(labelName, x + 17, y - 10);
+        this.ctx.fillText(labelName, x + 17, y - 10);
 
         if (isLocal) {
             this.ctx.fillStyle = "#55b02e";

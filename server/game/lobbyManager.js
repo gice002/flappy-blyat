@@ -230,7 +230,7 @@ class LobbyManager {
         }
 
         // Generate Maps, Checkpoints, and Item Boxes
-        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId);
+        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId, lobby.mode_id);
         lobby.maps = mapData.maps;
         lobby.checkpoints = mapData.checkpoints;
         lobby.itemBoxes = mapData.itemBoxes;
@@ -273,7 +273,7 @@ class LobbyManager {
         if (oldEngine) oldEngine.stop();
 
         // Generate new maps & checkpoints
-        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId);
+        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId, lobby.mode_id);
         lobby.maps = mapData.maps;
         lobby.checkpoints = mapData.checkpoints;
         lobby.itemBoxes = mapData.itemBoxes;
@@ -356,6 +356,96 @@ class LobbyManager {
         this.io.to(lobbyId).emit("returned_to_lobby", {
             lobby: this.serializeLobby(lobby)
         });
+    }
+
+    useItem(socket) {
+        const lobby = this.getLobbyByPlayerId(socket.id);
+        if (!lobby || lobby.status !== "playing") return;
+
+        const player = lobby.players.get(socket.id);
+        if (!player || !player.heldItem) return;
+
+        const usedItem = player.heldItem;
+        player.heldItem = null; // Item consumed
+
+        if (usedItem === "shield") {
+            player.hasShield = true;
+            this.io.to(lobby.Lobby_id).emit("item_used", {
+                userId: player.player_id,
+                userName: player.name,
+                itemType: "shield",
+                targetId: player.player_id,
+                targetName: player.name,
+                effect: "shield_active"
+            });
+            return;
+        }
+
+        if (usedItem === "ink" || usedItem === "curse") {
+            // Find 1st place player (max X position among active non-finished players)
+            let firstPlacePlayer = null;
+            let maxX = -1;
+            for (let p of lobby.players.values()) {
+                if (p.is_alive && !p.is_finished && p.x > maxX) {
+                    maxX = p.x;
+                    firstPlacePlayer = p;
+                }
+            }
+
+            // CRITICAL: If the player currently in 1st place uses Ink or Curse, the item is consumed with NO effect (wasted)!
+            if (!firstPlacePlayer || firstPlacePlayer.player_id === player.player_id) {
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: usedItem,
+                    wasted: true
+                });
+                return;
+            }
+
+            // Check if target has active Shield
+            if (firstPlacePlayer.hasShield) {
+                firstPlacePlayer.hasShield = false; // Shield destroyed/consumed
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: usedItem,
+                    targetId: firstPlacePlayer.player_id,
+                    targetName: firstPlacePlayer.name,
+                    shieldBlocked: true
+                });
+                return;
+            }
+
+            // Apply item effect to 1st place target
+            if (usedItem === "ink") {
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "ink",
+                    targetId: firstPlacePlayer.player_id,
+                    targetName: firstPlacePlayer.name,
+                    duration: 3000
+                });
+            } else if (usedItem === "curse") {
+                // Reduce target player's X-axis speed by 10% for 3 seconds
+                firstPlacePlayer.speedMultiplier = 0.9;
+                if (firstPlacePlayer.curseTimer) clearTimeout(firstPlacePlayer.curseTimer);
+                firstPlacePlayer.curseTimer = setTimeout(() => {
+                    firstPlacePlayer.speedMultiplier = 1.0;
+                    firstPlacePlayer.curseTimer = null;
+                }, 3000);
+
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "curse",
+                    targetId: firstPlacePlayer.player_id,
+                    targetName: firstPlacePlayer.name,
+                    duration: 3000
+                });
+            }
+        }
     }
 
     handleDisconnect(socket) {

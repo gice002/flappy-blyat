@@ -19,6 +19,12 @@ class Player {
         this.crashed_at_pipe = null;
         this.chain_index = 0;
         this.wipes_caused = 0; // Mode B Chained mode wipe tracker
+
+        // Inventory & Power-Up System State
+        this.heldItem = null;       // "ink" | "curse" | "shield" | null (Capacity: Max 1)
+        this.hasShield = false;     // Buff: active barrier
+        this.speedMultiplier = 1.0; // Debuff: 0.9 when cursed, 1.0 normal
+        this.curseTimer = null;
     }
 
     resetForMatch(startX, startY, initialCheckpointId) {
@@ -33,6 +39,12 @@ class Player {
         this.is_alive = true;
         this.crashed_at_pipe = null;
         this.wipes_caused = 0;
+
+        this.heldItem = null;
+        this.hasShield = false;
+        this.speedMultiplier = 1.0;
+        if (this.curseTimer) clearTimeout(this.curseTimer);
+        this.curseTimer = null;
     }
 }
 

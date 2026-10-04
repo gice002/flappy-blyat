@@ -61,6 +61,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const finishTimerSecondsEl = document.getElementById("finish-timer-seconds");
     const startCountdownEl = document.getElementById("start-countdown");
 
+    // Inventory UI Elements
+    const hudInventory = document.getElementById("hud-inventory");
+    const inventorySlot = document.getElementById("inventory-slot");
+    const inventoryEmptyLabel = document.getElementById("inventory-empty-label");
+    const inventoryItemIcon = document.getElementById("inventory-item-icon");
+
     // Results Screen Elements
     const resultsMainHeader = document.getElementById("results-main-header");
     const resultsSubHeader = document.getElementById("results-sub-header");
@@ -487,7 +493,26 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 1000);
     });
 
-    // In-Game Jump Listener
+    function updateInventoryUI(itemType) {
+        if (!hudInventory) return;
+        if (currentLobby && currentLobby.mode_id === "flappy_chained") {
+            hudInventory.style.display = "none";
+            return;
+        }
+        hudInventory.style.display = "flex";
+
+        if (itemType) {
+            inventoryEmptyLabel.style.display = "none";
+            inventoryItemIcon.style.display = "block";
+            inventoryItemIcon.src = `assets/items/item_${itemType}.svg`;
+        } else {
+            inventoryItemIcon.style.display = "none";
+            inventoryEmptyLabel.style.display = "inline";
+            inventoryEmptyLabel.innerText = "EMPTY";
+        }
+    }
+
+    // In-Game Jump & Item Input Listener
     function handleJumpInput() {
         if (!gameLoopRunning) return;
         if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) {
@@ -499,8 +524,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.addEventListener("keydown", (e) => {
+        const activeTag = document.activeElement ? document.activeElement.tagName : "";
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+
         if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyX") {
             handleJumpInput();
+        }
+
+        if (e.code === "KeyF" || e.key === "f" || e.key === "F") {
+            e.preventDefault();
+            if (gameLoopRunning && physics.localHeldItem) {
+                socket.emit("use_item");
+            }
         }
     });
 
@@ -516,6 +551,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Server Snapshot Handler
     socket.on("game_snapshot", (snapshot) => {
         physics.reconcileServerSnapshot(snapshot);
+        updateInventoryUI(physics.localHeldItem);
 
         if (snapshot.finishCountdown !== null && snapshot.finishCountdown >= 0) {
             finishTimerBanner.style.display = "block";
@@ -530,8 +566,32 @@ document.addEventListener("DOMContentLoaded", () => {
         audioManager.playSFX("die");
     });
 
-    socket.on("item_collected", () => {
+    socket.on("item_collected", (data) => {
         audioManager.playSFX("point");
+        if (data.playerId === localPlayerId && data.acquiredItem) {
+            physics.localHeldItem = data.acquiredItem;
+            updateInventoryUI(data.acquiredItem);
+        }
+    });
+
+    socket.on("item_used", (data) => {
+        if (data.userId === localPlayerId) {
+            physics.localHeldItem = null;
+            updateInventoryUI(null);
+        }
+
+        if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+            window.localInkUntil = Date.now() + (data.duration || 3000);
+            audioManager.playSFX("swooshing");
+        }
+
+        if (data.itemType === "curse" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
+            audioManager.playSFX("hit");
+        }
+
+        if (data.shieldBlocked && data.targetId === localPlayerId) {
+            audioManager.playSFX("point");
+        }
     });
 
     socket.on("player_respawned", (data) => {

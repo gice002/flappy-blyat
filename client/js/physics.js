@@ -106,6 +106,11 @@ class PhysicsEngine {
                     reconciledY = Math.max(0, reconciledY + reconciledVY);
                 }
 
+                if (serverPlayer.player_id === this.localPlayerId) {
+                    this.localHasShield = serverPlayer.hasShield;
+                    this.localHeldItem = serverPlayer.heldItem;
+                    this.localSpeedMultiplier = serverPlayer.speedMultiplier;
+                }
                 // Smooth correction / Reconciliation threshold
                 const diffX = Math.abs(this.predictedState.x - reconciledX);
                 const diffY = Math.abs(this.predictedState.y - reconciledY);
@@ -138,7 +143,10 @@ class PhysicsEngine {
                         targetVelocityY: serverPlayer.velocityY,
                         is_finished: serverPlayer.is_finished,
                         finish_time: serverPlayer.finish_time,
-                        chain_index: serverPlayer.chain_index
+                        chain_index: serverPlayer.chain_index,
+                        hasShield: serverPlayer.hasShield,
+                        heldItem: serverPlayer.heldItem,
+                        speedMultiplier: serverPlayer.speedMultiplier
                     };
                     this.remotePlayers.set(serverPlayer.player_id, remote);
                 } else {
@@ -151,6 +159,9 @@ class PhysicsEngine {
                     remote.is_finished = serverPlayer.is_finished;
                     remote.finish_time = serverPlayer.finish_time;
                     remote.chain_index = serverPlayer.chain_index;
+                    remote.hasShield = serverPlayer.hasShield;
+                    remote.heldItem = serverPlayer.heldItem;
+                    remote.speedMultiplier = serverPlayer.speedMultiplier;
                 }
             }
         }

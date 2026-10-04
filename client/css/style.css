@@ -356,6 +356,20 @@ select {
     transition: transform 0.1s, box-shadow 0.1s;
 }
 
+.inventory-slot {
+    width: 46px;
+    height: 46px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 3px solid #f7d51d;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    color: #888;
+    box-shadow: 0 4px 0 #000;
+}
+
 
 #finish-timer-banner {
     position: absolute;
