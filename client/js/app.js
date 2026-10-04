@@ -95,14 +95,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const skins = ["Classic Yellow", "Crimson Red", "Emerald Green", "Ocean Blue", "Royal Gold"];
     const hats = ["None", "Golden Crown", "Top Hat", "Red Cap", "Viking Helmet"];
 
-    // ==========================================
+    // Explicit State & Chat Cleanup Helpers
+    function clearChatUI() {
+        if (lobbyChatMessages) lobbyChatMessages.innerHTML = "";
+        if (resultsChatMessages) resultsChatMessages.innerHTML = "";
+    }
+
+    function clearLocalPlayerState() {
+        physics.clearRemotePlayers();
+        clearChatUI();
+    }
+
     // CRITICAL INPUT ISOLATION (Prevent Flap on Typing)
-    // ==========================================
     const allInputElements = document.querySelectorAll("input, textarea, select");
     allInputElements.forEach(inputEl => {
         ["keydown", "keyup", "keypress"].forEach(eventType => {
             inputEl.addEventListener(eventType, (e) => {
-                e.stopPropagation(); // Stop event bubbling to window spacebar listeners!
+                e.stopPropagation(); // Stop event bubbling
             });
         });
     });
@@ -159,6 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Create & Join Lobby Actions
     btnCreateLobby.addEventListener("click", () => {
+        clearLocalPlayerState();
         window.playerName = nameInput.value.trim() || "BirdPlayer";
         audioManager.playBGM();
         socket.emit("create_lobby", {
@@ -179,6 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnConfirmJoin.addEventListener("click", () => {
         const code = joinCodeInput.value.trim();
         if (!code) return alert("Please enter a Lobby Code!");
+        clearLocalPlayerState();
         window.playerName = nameInput.value.trim() || "BirdPlayer";
         audioManager.playBGM();
         socket.emit("join_lobby", {
@@ -203,6 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentLobby) {
             socket.emit("leave_lobby");
             currentLobby = null;
+            clearLocalPlayerState();
             showScreen("mainMenu");
         }
     });
@@ -223,6 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
             socket.emit("leave_lobby");
             currentLobby = null;
         }
+        clearLocalPlayerState();
         showScreen("mainMenu");
     });
 
@@ -298,7 +311,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const safeMsg = escapeHtml(data.message);
         const htmlLine = `<div class="chat-msg-line"><span class="chat-author">${safeName}:</span> ${safeMsg}</div>`;
 
-        // Append to both chat boxes
         lobbyChatMessages.insertAdjacentHTML("beforeend", htmlLine);
         resultsChatMessages.insertAdjacentHTML("beforeend", htmlLine);
 
@@ -312,6 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Socket Event Handlers
     socket.on("lobby_created", (data) => {
+        clearLocalPlayerState();
         currentLobby = data.lobby;
         localPlayerId = data.playerId;
         physics.setLocalPlayerId(localPlayerId);
@@ -320,6 +333,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     socket.on("lobby_joined", (data) => {
+        clearLocalPlayerState();
         currentLobby = data.lobby;
         localPlayerId = data.playerId;
         physics.setLocalPlayerId(localPlayerId);
@@ -335,11 +349,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     socket.on("left_lobby", () => {
         currentLobby = null;
+        clearLocalPlayerState();
         showScreen("mainMenu");
     });
 
     socket.on("player_kicked", (data) => {
         currentLobby = null;
+        clearLocalPlayerState();
         alert(data.message || "You have been kicked from the lobby.");
         showScreen("mainMenu");
     });
@@ -354,7 +370,6 @@ document.addEventListener("DOMContentLoaded", () => {
         lobbyIdDisplay.textContent = currentLobby.Lobby_id;
         const isHost = (localPlayerId === currentLobby.host_ID);
 
-        // Render Players list
         playerListEl.innerHTML = "";
         let allReady = true;
 
@@ -384,7 +399,6 @@ document.addEventListener("DOMContentLoaded", () => {
             playerListEl.appendChild(item);
         }
 
-        // Attach listeners to kick buttons
         const kickButtons = playerListEl.querySelectorAll(".btn-kick");
         kickButtons.forEach(btn => {
             btn.addEventListener("click", (e) => {
@@ -395,7 +409,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        // Host controls visibility
         if (isHost) {
             hostControlsEl.style.display = "block";
             btnStartMatch.style.display = "inline-block";
@@ -441,6 +454,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const startChk = data.checkpoints.find(c => c.checkpoint_id === data.lobby.startCheckpointId);
         const startX = startChk ? startChk.respawn_coordinate_x : 100;
         const startY = startChk ? startChk.respawn_coordinate_y : 320;
+        
+        // Strict state wipe for physics prediction & remote tracking on match start
         physics.resetLocalState(startX, startY);
 
         let count = data.countdownSeconds || 3;
@@ -461,10 +476,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 1000);
     });
 
-    // In-Game Jump Listener with Input Focus Check
+    // In-Game Jump Listener
     function handleJumpInput() {
         if (!gameLoopRunning) return;
-        // Strict input isolation check: if user is typing in any text input, do NOT flap!
         if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) {
             return;
         }
@@ -551,10 +565,8 @@ document.addEventListener("DOMContentLoaded", () => {
         finishTimerBanner.style.display = "none";
         showScreen("resultsView");
 
-        // Update Host authorization buttons vs waiting text
         updateResultsHostState();
 
-        // Populate Leaderboard Table
         leaderboardBody.innerHTML = "";
         for (let entry of data.leaderboard) {
             const tr = document.createElement("tr");
@@ -580,6 +592,5 @@ document.addEventListener("DOMContentLoaded", () => {
         showScreen("lobbyRoom");
     });
 
-    // Initial customization setup
     updateCustomizationUI();
 });

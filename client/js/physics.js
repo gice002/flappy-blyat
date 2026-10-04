@@ -18,12 +18,16 @@ class PhysicsEngine {
             velocityY: 0
         };
 
-        // Interpolated remote players state map: playerId -> { x, y, velocityY, targetX, targetY, targetVelocityY, name, skin_ID, hat_ID, is_finished, finish_time, chain_index }
+        // Interpolated remote players state map: playerId -> playerObj
         this.remotePlayers = new Map();
     }
 
     setLocalPlayerId(id) {
         this.localPlayerId = id;
+    }
+
+    clearRemotePlayers() {
+        this.remotePlayers.clear();
     }
 
     resetLocalState(startX, startY) {
@@ -34,6 +38,7 @@ class PhysicsEngine {
         };
         this.inputSequence = 0;
         this.pendingInputs = [];
+        this.clearRemotePlayers(); // Enforce strict state wipe on local reset
     }
 
     // Process local jump input instantly for zero latency
@@ -70,6 +75,15 @@ class PhysicsEngine {
     // Reconcile with authoritative Server Snapshot
     reconcileServerSnapshot(snapshot) {
         if (!snapshot || !snapshot.players) return;
+
+        // Build active player ID set from snapshot to prune disconnected / stale ghosts
+        const activeServerPlayerIds = new Set(snapshot.players.map(p => p.player_id));
+
+        for (let remoteId of Array.from(this.remotePlayers.keys())) {
+            if (!activeServerPlayerIds.has(remoteId)) {
+                this.remotePlayers.delete(remoteId); // Remove ghost player
+            }
+        }
 
         for (let serverPlayer of snapshot.players) {
             if (serverPlayer.player_id === this.localPlayerId) {
@@ -150,4 +164,8 @@ class PhysicsEngine {
             remote.velocityY = remote.targetVelocityY;
         }
     }
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = PhysicsEngine;
 }

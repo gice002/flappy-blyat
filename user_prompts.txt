@@ -176,3 +176,26 @@ Please update the codebase with the following exact requirements:
     CRITICAL Input Isolation: You MUST ensure that pressing the "Spacebar" or "Enter" keys while focused on the chat input field does NOT trigger the bird's flap mechanic or accidentally click other UI buttons. Implement proper event.stopPropagation() and prevent event bubbling specifically for the chat input DOM element.
 
 Please provide the required logic updates for the Server (gameManager.js / socket events), and the Client (ui.js and client.js) to seamlessly integrate these features.
+
+================================================================================
+PROMPT 7
+================================================================================
+Act as a Senior Full-Stack Game Developer. Based on gameplay testing, we have two specific state persistence bugs when transitioning between rooms or restarting matches.
+
+Please fix these exact bugs with the following requirements:
+
+1. Frozen "Ghost" Players & Duplication Bug
+
+    Symptom: When restarting a match or joining a new room, players see duplicate birds. The old birds remain completely frozen as "ghosts" at the spawn point, while the new ones function normally.
+
+    Fix (client.js): The client is holding onto old player entities in its state. You MUST enforce a strict state wipe. Completely clear the local players tracking object (e.g., players = {}) every time the client receives a join_room, leave_room, or match_init socket event.
+
+    Fix (gameManager.js): Ensure the server does not broadcast stale player instances when a match is restarted. Send a clear synchronization payload so clients overwrite their local state instead of appending new player IDs to the old ones.
+
+2. Persistent Chat History Bug
+
+    Symptom: The chat UI hides and shows correctly, and the messaging works fine. However, when joining a brand new room, the chat history from the previous room is still visible inside the message box.
+
+    Fix (ui.js): The DOM element containing the chat messages is not being emptied. Add explicit logic to clear the chat container (e.g., chatMessagesContainer.innerHTML = '';) immediately when the "Leave Room" action is triggered or right before a player joins a new lobby.
+
+Please provide the targeted code patches for client.js, gameManager.js, and ui.js to implement these cleanup routines.
