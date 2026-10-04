@@ -52,11 +52,53 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
             themeId = SUBSEQUENT_THEMES[randomIndex];
         }
 
+        const checkpointId = `chk_${lobbyId}_${m}`;
         const mapSpawnX = (m === 1) ? 100 : (currentX - pipeSpacingX + 100);
         const mapSpawnY = 320;
 
         for (let i = 1; i <= 10; i++) {
             pipeIndexCounter++;
+
+            if (i === 10) {
+                // 10th pipe slot is REPLACED by a dedicated Checkpoint Zone (no pipe obstacle)
+                const respawnX = currentX + Math.floor(pipeSpacingX / 2);
+                const respawnY = 320;
+
+                // Pre-Checkpoint Item Column
+                if (modeId !== "flappy_chained") {
+                    const preChkItemX = respawnX - 140;
+                    for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
+                        const boxY = 160 + (boxIdx * 40);
+
+                        itemXList.push(preChkItemX);
+                        itemYList.push(boxY);
+
+                        itemBoxes.push({
+                            id: `item_${lobbyId}_chk_pre_${m}_${boxIdx}`,
+                            x: preChkItemX,
+                            y: boxY,
+                            width: 32,
+                            height: 32,
+                            collected: false,
+                            isActive: true,
+                            collectedBy: null
+                        });
+                    }
+                }
+
+                const checkpointObj = new Checkpoint(
+                    checkpointId,
+                    mapId,
+                    respawnX,
+                    respawnY,
+                    pipeIndexCounter
+                );
+                checkpoints.set(checkpointId, checkpointObj);
+
+                // Expand Checkpoint Zone spacing to PIPE_SPACING_X * 2 (760px)
+                currentX += pipeSpacingX * 2;
+                continue;
+            }
 
             // Dynamic Y-Axis Gap Randomization per pipe
             const gapSize = Math.floor(Math.random() * (MAX_GAP - MIN_GAP + 1)) + MIN_GAP;
@@ -110,41 +152,6 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
             currentX += pipeSpacingX;
         }
 
-        const checkpointId = `chk_${lobbyId}_${m}`;
-        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 600;
-        const respawnY = 320;
-
-        // Pre-Checkpoint Item Column (Placed BEFORE checkpoint respawn point to prevent instant spawn-camping)
-        if (modeId !== "flappy_chained") {
-            const preChkItemX = respawnX - 120;
-            for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
-                const boxY = 160 + (boxIdx * 40);
-
-                itemXList.push(preChkItemX);
-                itemYList.push(boxY);
-
-                itemBoxes.push({
-                    id: `item_${lobbyId}_chk_pre_${m}_${boxIdx}`,
-                    x: preChkItemX,
-                    y: boxY,
-                    width: 32,
-                    height: 32,
-                    collected: false,
-                    isActive: true,
-                    collectedBy: null
-                });
-            }
-        }
-
-        const checkpointObj = new Checkpoint(
-            checkpointId,
-            mapId,
-            respawnX,
-            respawnY,
-            pipeIndexCounter
-        );
-        checkpoints.set(checkpointId, checkpointObj);
-
         const mapObj = new MapData(
             mapId,
             checkpointId,
@@ -162,8 +169,9 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
         maps.push(mapObj);
     }
 
-    const lastPipe = maps[maps.length - 1].pipes[9];
-    const finishLineX = lastPipe.x + pipeWidth + 20;
+    const lastMapPipes = maps[maps.length - 1].pipes;
+    const lastPipe = lastMapPipes[lastMapPipes.length - 1];
+    const finishLineX = lastPipe ? (lastPipe.x + pipeWidth + 380) : currentX;
 
     return {
         maps,

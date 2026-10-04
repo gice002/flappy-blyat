@@ -207,6 +207,9 @@ class CanvasRenderer {
 
         // 9. Render Real-time Shaking Death Note Book Effect
         this.renderDeathNoteEffect();
+
+        // 10. Render Racing Progress Bar HUD (Track Tracker)
+        this.renderRacingProgressBar();
     }
 
     renderDeathNoteEffect() {

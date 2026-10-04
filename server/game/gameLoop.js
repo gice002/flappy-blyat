@@ -78,16 +78,20 @@ class GameEngine {
                 const input = inputs.shift();
                 if (!input) continue; // CRITICAL FIX: Ignore null or undefined inputs
 
-                if (input.action === "jump") {
+                if (input.action === "jump" && !player.isFrozenInIce) {
                     player.velocityY = JUMP_VELOCITY;
                 }
                 player.last_processed_input = input.sequence || player.last_processed_input;
             }
 
-            // Apply strict uniform forward X velocity & individual Y gravity (modified by Curse debuff speedMultiplier if active)
-            player.x += FORWARD_VELOCITY * (player.speedMultiplier || 1.0);
-            player.velocityY += GRAVITY;
-            player.y = Math.max(0, player.y + player.velocityY);
+            // Apply strict uniform forward X velocity & individual Y gravity (modified by Curse/Ice debuffs)
+            if (player.isFrozenInIce) {
+                player.velocityY = 0;
+            } else {
+                player.x += FORWARD_VELOCITY * (player.speedMultiplier || 1.0);
+                player.velocityY += GRAVITY;
+                player.y = Math.max(0, player.y + player.velocityY);
+            }
 
             // Check pipe progress and update checkpoint
             this.updatePlayerProgress(player);
@@ -174,15 +178,13 @@ class GameEngine {
             if (player.x > pipe.x + pipe.width) {
                 if (pipe.pipeIndex > player.last_pipe_passed) {
                     player.last_pipe_passed = pipe.pipeIndex;
-
-                    const checkpointNum = Math.floor(pipe.pipeIndex / 10);
-                    if (pipe.pipeIndex % 10 === 0 && checkpointNum > 0) {
-                        const chkId = `chk_${this.lobby.Lobby_id}_${checkpointNum}`;
-                        if (this.lobby.checkpoints.has(chkId)) {
-                            player.checkpoint_id = chkId;
-                        }
-                    }
                 }
+            }
+        }
+
+        for (let [chkId, chk] of this.lobby.checkpoints.entries()) {
+            if (player.x >= chk.respawn_coordinate_x - 50 && chkId !== this.lobby.startCheckpointId) {
+                player.checkpoint_id = chkId;
             }
         }
     }
@@ -312,6 +314,8 @@ class GameEngine {
                 heldItem: p.heldItem,
                 hasShield: p.hasShield,
                 isInvincible: p.isInvincible,
+                isBucketHead: p.isBucketHead || false,
+                isFrozenInIce: p.isFrozenInIce || false,
                 speedMultiplier: p.speedMultiplier
             });
         }

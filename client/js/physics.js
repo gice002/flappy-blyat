@@ -124,7 +124,11 @@ class PhysicsEngine {
                 }
 
                 if (this.localIsFrozenInIce) {
+                    this.predictedState.x = serverPlayer.x;
+                    this.predictedState.y = serverPlayer.y;
                     this.predictedState.velocityY = 0;
+                    this.pendingInputs = [];
+                    continue;
                 }
 
                 // Server baseline position
