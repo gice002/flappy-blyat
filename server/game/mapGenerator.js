@@ -1,6 +1,8 @@
 const MapData = require("../models/Map");
 const Checkpoint = require("../models/Checkpoint");
 
+const THEMES = ["classic_day", "retro_night", "desert_dusk"];
+
 function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
     const maps = [];
     const checkpoints = new Map();
@@ -8,7 +10,6 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
 
     const pipeWidth = 64;
     const pipeHeight = 512;
-    const boardHeight = 640;
     const openingSpace = 160;
     const pipeSpacingX = 250;
     const startX = 500;
@@ -33,13 +34,14 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
         const itemXList = [];
         const itemYList = [];
 
+        // Assign theme sequence based on map sequence
+        const themeId = THEMES[(m - 1) % THEMES.length];
+
         const mapSpawnX = (m === 1) ? 100 : (currentX - pipeSpacingX + 100);
         const mapSpawnY = 320;
 
         for (let i = 1; i <= 10; i++) {
             pipeIndexCounter++;
-            // Calculate random top pipe Y position
-            // Top pipe Y range between -380 and -180
             const randomPipeTopY = -200 - Math.floor(Math.random() * 180);
             const topY = randomPipeTopY;
             const bottomY = randomPipeTopY + pipeHeight + openingSpace;
@@ -47,6 +49,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
             mapPipes.push({
                 pipeIndex: pipeIndexCounter,
                 mapSequence: m,
+                theme_id: themeId,
                 x: currentX,
                 width: pipeWidth,
                 height: pipeHeight,
@@ -56,7 +59,6 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
                 bottomHeight: pipeHeight
             });
 
-            // Add item boxes between certain pipes (e.g. pipe 3, pipe 7 of each map)
             if (i === 3 || i === 7) {
                 const itemX = currentX + Math.floor(pipeSpacingX / 2);
                 const itemY = topY + pipeHeight + Math.floor(openingSpace / 2) - 16;
@@ -77,7 +79,6 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
             currentX += pipeSpacingX;
         }
 
-        // Checkpoint after pipe 10 of each map (pipeIndexCounter = 10, 20, 30...)
         const checkpointId = `chk_${lobbyId}_${m}`;
         const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 40;
         const respawnY = 320;
@@ -101,7 +102,8 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
             mapSpawnY,
             itemXList,
             itemYList,
-            mapPipes
+            mapPipes,
+            themeId
         );
 
         maps.push(mapObj);

@@ -1,0 +1,32 @@
+{
+  "hats": [
+    { "id": "none", "name": "None", "src": "" },
+    { "id": "crown", "name": "Golden Crown", "src": "assets/hat_crown.png" },
+    { "id": "top_hat", "name": "Top Hat", "src": "assets/hat_top.png" },
+    { "id": "cap", "name": "Red Baseball Cap", "src": "assets/hat_cap.png" },
+    { "id": "viking", "name": "Viking Helmet", "src": "assets/hat_viking.png" }
+  ],
+  "map_themes": [
+    {
+      "theme_id": "classic_day",
+      "name": "Classic Day",
+      "bg_src": "assets/flappybirdbg.png",
+      "pipe_top_src": "assets/toppipe.png",
+      "pipe_bottom_src": "assets/bottompipe.png"
+    },
+    {
+      "theme_id": "retro_night",
+      "name": "Retro Night",
+      "bg_src": "assets/flappybirdbg_night.png",
+      "pipe_top_src": "assets/toppipe_night.png",
+      "pipe_bottom_src": "assets/bottompipe_night.png"
+    },
+    {
+      "theme_id": "desert_dusk",
+      "name": "Desert Dusk",
+      "bg_src": "assets/flappybirdbg_dusk.png",
+      "pipe_top_src": "assets/toppipe_dusk.png",
+      "pipe_bottom_src": "assets/bottompipe_dusk.png"
+    }
+  ]
+}

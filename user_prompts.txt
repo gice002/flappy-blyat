@@ -1,0 +1,143 @@
+================================================================================
+PROMPT 1
+================================================================================
+Act as a Senior Full-Stack Game Developer and Network Engineer. Your task is to refactor an existing single-player HTML5 Canvas game into a Real-Time Multiplayer Network Game.
+
+1. Base Code & Tech Stack
+    Base Repository: Fetch the base game mechanics from https://github.com/ImKennyYip/flappy-bird.
+    Frontend: HTML5 Canvas, Vanilla JavaScript, CSS.
+    Backend & Network: Node.js, Express.js, and Socket.IO.
+    Network Architecture (CRITICAL): Implement a Client-Predicted with Server Reconciliation model. The client must instantly simulate the local bird's jump and physics for zero-latency visual feedback (at 60 FPS), while sending jump inputs to the Server. The Server acts as the Authoritative state, validating inputs, checking collisions, and broadcasting the true state back to clients to correct any discrepancies.
+
+2. Core Engine Refactoring
+    World Space Overhaul: Modify the original code's logic. Instead of having a static bird and pipes moving left, rewrite the engine to use a Static World with a Moving Camera.
+    Pipes, items, and checkpoints must be placed at fixed X/Y coordinates in the world space.
+    The bird's X coordinate continuously increases, and the viewport (Camera) tracks the local player's bird. This is mandatory to prevent network desync issues.
+
+3. Map & Checkpoint System
+    A complete match consists of a selected number of maps (default is 1, but can be 3 or 5).
+    Each map contains exactly 10 pipes. Maps are generated or selected randomly.
+    Checkpoints: Placed strictly every 10 pipes (e.g., pipe 10, pipe 20). The final pipe (e.g., pipe 30) serves as the exact Finish Line/Goal.
+    Respawn Logic: If a player collides with an obstacle, they instantly respawn at their latest cleared checkpoint without resetting their progress.
+
+4. Game Modes
+    Mode A: Flappy Race (Default)
+        Players race to reach the finish line first. No scores based on passing pipes; ranking is purely based on finish time.
+        Item Architecture Placeholder: The backend map data will provide item_spawn_cords_x and item_spawn_cords_y. Implement the structural logic to spawn item boxes at these coordinates and the collision detection event for when a player collects them. Leave the actual gameplay effects of the items completely empty/null for now, pending future "Item Concept" files.
+    Mode B: Flappy Chained
+        A 4-player mode where all players are attached by a chain.
+        Mechanics: Visually render the chain with equal spacing between the 4 birds. The chain does NOT affect flight physics or pulling gravity.
+        Shared Death: If ANY single player in the chain collides with a pipe, it triggers a wipe. ALL 4 players will instantly die and respawn together at the latest checkpoint simultaneously.
+
+5. Match Flow & Leaderboard
+    The actual goal is strictly on the final map of the game. Multiple players can cross the finish line.
+    When the first player crosses the finish line, a global 10-second timeout countdown begins. Other players can still attempt to finish within this window.
+    When the countdown ends, the match terminates.
+    Leaderboard: Display players ordered by finish time. Players who did not cross the finish line before the timer ends must be assigned an "[ OUT ]" status (e.g., "CRASHED AT PIPE 14") instead of a numerical placement rank.
+
+6. Use Cases & UI Flow Implementation
+    Lobby Registration (UC-1, 2, 3): Players MUST set a name before joining or creating a lobby. Joining requires matching an existing Lobby_id.
+    Customization (UC-4, 5): Skin customization (Hat and Color) must be networked and visible to all clients.
+    Settings (UC-6, 7): Audio settings (BGM and SFX) are local client states. Include a 60 FPS lock mechanism.
+    Ready System (UC-8, 9, 11): All players in the lobby must toggle "Ready" before the host can start. Minimum player count to start is 2. The match countdown starts only when all players are ready.
+    Host Controls (UC-12, 13): Only the Host can change the mode and amount of maps. Changes must broadcast and dynamically update the Lobby UI for all clients.
+
+7. Domain Model (Database/State Structure)
+Implement backend state management using these specific entities and relationships:
+    Player: player_id (PK), checkpoint_id (FK), name, skin_ID, hat_ID, ready_status.
+    Lobby: Lobby_id (PK), mode_id (FK), host_ID, amount_of_map.
+    Mode: mode_id (PK), mode_name.
+    Map: map_id (PK), checkpoint_id (FK), map_name, map_sequence, is_final_map, spawn_coordinate_x, spawn_coordinate_y, item_spawn_cords_x, item_spawn_cords_y.
+    Checkpoint: checkpoint_id (PK), map_id (FK), respawn_coordinate_x, respawn_coordinate_y.
+    Leaderboard: leaderboard_id (PK), player_id (FK), lobby_id (FK), finish_time, ranking.
+
+Please structure the project into /client and /server directories. Begin by setting up the Express/Socket.IO server, building the state management payload structures, and rewriting the HTML5 Canvas base to support the moving camera concept for Client-Predicted network synchronization. Generate the complete project scaffolding and core engine code.
+
+================================================================================
+PROMPT 2
+================================================================================
+node:events:505
+    throw er; // Unhandled 'error' event
+    ^
+
+Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:2390:16)
+    at listenInCluster (node:net:2499:12)
+    at Server.listen (node:net:2624:7)
+    at Object.<anonymous> (/home/notsiri/projects/flappy-bird/server/server.js:65:8)
+    at Module._compile (node:internal/modules/cjs/loader:1956:14)
+    at Object..js (node:internal/modules/cjs/loader:2096:10)
+    at Module.load (node:internal/modules/cjs/loader:1678:32)
+    at Module._load (node:internal/modules/cjs/loader:1470:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:2478:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3000
+}
+
+================================================================================
+PROMPT 3
+================================================================================
+write some read me for github about how to start a server and things
+
+================================================================================
+PROMPT 4
+================================================================================
+13. Production Deployment & Cloud Hosting Configuration (Public Online Multiplayer)
+
+    Cloud-Ready Setup: The project MUST be structured for immediate production deployment to PaaS providers (like Render, Railway, or Fly.io) to allow global multiplayer over the internet.
+
+    Production Scripts: Include standard production scripts in package.json (e.g., "start": "node server/server.js").
+
+    WSS & Reverse Proxy Handling: Configure Socket.IO and Express to properly handle secure WebSockets (wss://) and trust reverse proxies (app.set('trust proxy', 1)), which is required when deploying on modern cloud hosts.
+
+    Containerization: Generate a standard Dockerfile and .dockerignore optimized for a Node.js web application. This ensures the game can be easily deployed to any container-based cloud service.
+
+    Environment Variables: Use .env file structure for configuring PORT and NODE_ENV. Ensure the server gracefully falls back to port 3000 if process.env.PORT is undefined.
+
+================================================================================
+PROMPT 5
+================================================================================
+Act as a Senior Full-Stack Game Developer. The foundational multiplayer architecture for the Flappy Bird game is working, but I need you to implement Lobby Management Features and a Dynamic Asset Configuration System to support custom graphics (backgrounds, pipes, and transparent PNG hats).
+
+Please update the codebase with the following requirements:
+
+1. Lobby UI & Management Updates (Leave & Kick System)
+
+    Leave Button: Add a single "Leave Room" button to the Lobby UI.
+
+        When a standard player clicks it, they are sent back to the Main Menu, and the server removes them from the lobby state.
+
+        Host Migration: If the Host clicks "Leave Room", the server must reassign the Host role to the next available player in the room (e.g., index 1) before removing the original host. Update the Lobby UI for all remaining players to reflect the new Host.
+
+    Kick Feature (Host Only): Add a "Kick" button/icon next to each player's name in the Lobby UI. This button must ONLY be visible and clickable by the Host. When clicked, the server forcefully removes that specific player, sends them back to the Main Menu with a "You have been kicked" alert, and updates the lobby state for everyone else.
+
+2. Dynamic Asset Configuration System (JSON)
+
+    I have prepared custom PNG files for backgrounds, pipes, and transparent hats. Do not hardcode image paths in the main rendering loop.
+
+    Create a centralized configuration file (e.g., public/config/assets.json or a globally accessible assets.js config object) to easily manage game assets without digging into the core code.
+
+    Structure the configuration like this:
+
+        hats: An array of objects { id: string, name: string, src: string (path to transparent PNG) }.
+
+        map_themes: An array of objects { theme_id: string, name: string, bg_src: string, pipe_src: string }.
+
+3. Dynamic Rendering Implementation (Canvas)
+
+    Dynamic Maps: Update the Canvas rendering loop. When the server generates the sequence of maps for a match, it must assign a theme_id to each map. The client must dynamically load and render the specific background (bg_src) and pipe (pipe_src) based on the current map's theme.
+
+    Theme Transition: When a player crosses a checkpoint that transitions them into the next map (e.g., moving from map 1 to map 2), the client must seamlessly switch to rendering the new map's background and pipe images.
+
+    Hat Rendering: Update the player drawing logic. Based on the hat_ID from the player's state, draw the corresponding transparent hat PNG directly on top of the bird's sprite at the correct coordinates (accounting for the bird's rotation/flap animation).
+
+Please provide the necessary code updates for the Server (gameManager.js / socket events), the Client UI (ui.js), the Client Rendering loop (client.js), and generate the structure for the new asset configuration file.
+
+and can you take all the prompt I prompted you since the beginning into a .txt file ?

@@ -50,7 +50,11 @@
         <!-- SCREEN 2: LOBBY ROOM (UC-8, 9, 11, 12, 13) -->
         <div id="screen-lobby" class="screen">
             <div class="card">
-                <h2>LOBBY ROOM</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h2 style="margin: 0;">LOBBY ROOM</h2>
+                    <button class="btn btn-danger btn-small" id="btn-leave-lobby">LEAVE ROOM</button>
+                </div>
+
                 <div style="margin-bottom: 12px; font-size: 10px;">
                     ROOM CODE: <strong id="lobby-id-display" style="color: #f7d51d;">------</strong>
                     <button class="btn btn-small" id="btn-copy-lobby-id">COPY</button>

@@ -174,9 +174,26 @@ input[type="text"] {
     box-shadow: 0 6px 0 #1b547b;
 }
 
+.btn-danger {
+    background: #d9534f;
+    box-shadow: 0 4px 0 #962d2a;
+}
+
+.btn-danger:hover {
+    box-shadow: 0 6px 0 #962d2a;
+}
+
 .btn-small {
     padding: 6px 10px;
     font-size: 9px;
+    box-shadow: 0 2px 0 #000;
+}
+
+.btn-kick {
+    padding: 4px 6px;
+    font-size: 7px;
+    margin-left: 6px;
+    background: #d9534f;
     box-shadow: 0 2px 0 #000;
 }
 

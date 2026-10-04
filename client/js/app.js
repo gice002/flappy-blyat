@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Lobby Elements
     const lobbyIdDisplay = document.getElementById("lobby-id-display");
     const btnCopyLobbyId = document.getElementById("btn-copy-lobby-id");
+    const btnLeaveLobby = document.getElementById("btn-leave-lobby");
     const playerListEl = document.getElementById("player-list");
     const hostControlsEl = document.getElementById("host-controls-panel");
     const selectMode = document.getElementById("select-game-mode");
@@ -169,6 +170,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Leave Room Listener
+    btnLeaveLobby.addEventListener("click", () => {
+        if (currentLobby) {
+            socket.emit("leave_lobby");
+            currentLobby = null;
+            showScreen("mainMenu");
+        }
+    });
+
     // Settings Modal Listeners
     btnOpenSettings.addEventListener("click", () => {
         modals.settings.classList.add("active");
@@ -234,6 +244,17 @@ document.addEventListener("DOMContentLoaded", () => {
         updateLobbyUI();
     });
 
+    socket.on("left_lobby", () => {
+        currentLobby = null;
+        showScreen("mainMenu");
+    });
+
+    socket.on("player_kicked", (data) => {
+        currentLobby = null;
+        alert(data.message || "You have been kicked from the lobby.");
+        showScreen("mainMenu");
+    });
+
     socket.on("error_message", (data) => {
         alert(data.message);
     });
@@ -257,16 +278,34 @@ document.addEventListener("DOMContentLoaded", () => {
             const hostBadge = (player.player_id === currentLobby.host_ID) ? `<span class="badge badge-host">HOST</span>` : "";
             const readyBadge = player.ready_status ? `<span class="badge badge-ready">READY</span>` : `<span class="badge badge-not-ready">NOT READY</span>`;
 
+            // Render Kick button ONLY for Host and ONLY for non-host players
+            let kickButtonHtml = "";
+            if (isHost && player.player_id !== localPlayerId) {
+                kickButtonHtml = `<button class="btn btn-kick btn-danger" data-kick-id="${player.player_id}">KICK</button>`;
+            }
+
             item.innerHTML = `
                 <div>
                     <strong>${player.name}</strong> ${hostBadge}
                 </div>
-                <div>
+                <div style="display: flex; align-items: center;">
                     ${readyBadge}
+                    ${kickButtonHtml}
                 </div>
             `;
             playerListEl.appendChild(item);
         }
+
+        // Attach event listeners to kick buttons
+        const kickButtons = playerListEl.querySelectorAll(".btn-kick");
+        kickButtons.forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                const targetId = e.target.getAttribute("data-kick-id");
+                if (targetId) {
+                    socket.emit("kick_player", { targetPlayerId: targetId });
+                }
+            });
+        });
 
         // Host controls visibility
         if (isHost) {

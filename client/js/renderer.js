@@ -7,9 +7,13 @@ class CanvasRenderer {
         this.width = canvas.width;
         this.height = canvas.height;
 
-        // Assets
+        // Config & Assets
+        this.assetsConfig = null;
+        this.themeImages = {}; // theme_id -> { bg: Image, topPipe: Image, bottomPipe: Image }
+        this.hatImages = {};   // hat_id -> Image
         this.images = {};
-        this.loadAssets();
+
+        this.loadAssetsConfig();
 
         this.maps = [];
         this.checkpoints = [];
@@ -24,20 +28,20 @@ class CanvasRenderer {
         this.frameCount = 0;
         this.currentFps = 60;
 
-        // Animation frame index for bird flapping
         this.animFrame = 0;
         setInterval(() => {
             this.animFrame = (this.animFrame + 1) % 4;
         }, 120);
     }
 
-    loadAssets() {
+    async loadAssetsConfig() {
+        // Base bird animation frames
         const sources = {
-            bg: "assets/flappybirdbg.png",
             bird0: "assets/flappybird0.png",
             bird1: "assets/flappybird1.png",
             bird2: "assets/flappybird2.png",
             bird3: "assets/flappybird3.png",
+            bg: "assets/flappybirdbg.png",
             topPipe: "assets/toppipe.png",
             bottomPipe: "assets/bottompipe.png"
         };
@@ -45,6 +49,50 @@ class CanvasRenderer {
         for (let key in sources) {
             this.images[key] = new Image();
             this.images[key].src = sources[key];
+        }
+
+        try {
+            const res = await fetch("config/assets.json");
+            this.assetsConfig = await res.json();
+            this.preloadConfiguredAssets();
+        } catch (e) {
+            console.warn("[Renderer] Failed to load config/assets.json, using fallback theme assets:", e);
+        }
+    }
+
+    preloadConfiguredAssets() {
+        if (!this.assetsConfig) return;
+
+        // Preload Map Themes
+        if (this.assetsConfig.map_themes) {
+            for (let theme of this.assetsConfig.map_themes) {
+                const bgImg = new Image();
+                bgImg.src = theme.bg_src;
+
+                const topImg = new Image();
+                topImg.src = theme.pipe_top_src || theme.pipe_src;
+
+                const botImg = new Image();
+                botImg.src = theme.pipe_bottom_src || theme.pipe_src;
+
+                this.themeImages[theme.theme_id] = {
+                    bg: bgImg,
+                    topPipe: topImg,
+                    bottomPipe: botImg
+                };
+            }
+        }
+
+        // Preload Hats
+        if (this.assetsConfig.hats) {
+            for (let hat of this.assetsConfig.hats) {
+                if (hat.src) {
+                    const hatImg = new Image();
+                    hatImg.src = hat.src;
+                    this.hatImages[hat.id] = hatImg;
+                    // Also index by numerical skin/hat ID index if applicable
+                }
+            }
         }
     }
 
@@ -78,13 +126,13 @@ class CanvasRenderer {
         const localBird = this.physics.predictedState;
         this.cameraX = localBird.x - 150;
 
-        // 1. Render Tiled Parallax Background
+        // 1. Render Seamless Dynamic Background
         this.renderBackground();
 
         // 2. Render Checkpoints & Finish Line
         this.renderCheckpointsAndFinish();
 
-        // 3. Render Pipes
+        // 3. Render Pipes (Themed dynamically per map)
         this.renderPipes();
 
         // 4. Render Item Boxes
@@ -98,17 +146,36 @@ class CanvasRenderer {
         this.renderGround();
     }
 
+    getCurrentMapTheme() {
+        const localX = this.physics.predictedState.x;
+        // Determine current map theme based on local player position
+        for (let mapData of this.maps) {
+            if (mapData.pipes && mapData.pipes.length > 0) {
+                const firstPipeX = mapData.pipes[0].x - 300;
+                const lastPipeX = mapData.pipes[mapData.pipes.length - 1].x + 300;
+                if (localX >= firstPipeX && localX <= lastPipeX) {
+                    return mapData.theme_id || "classic_day";
+                }
+            }
+        }
+        return (this.maps[0] && this.maps[0].theme_id) ? this.maps[0].theme_id : "classic_day";
+    }
+
     renderBackground() {
         const bgWidth = 288;
         const bgHeight = 512;
         const bgY = this.height - bgHeight;
 
-        // Calculate parallax offset
+        const currentThemeId = this.getCurrentMapTheme();
+        const themeAsset = this.themeImages[currentThemeId];
+        const bgImg = (themeAsset && themeAsset.bg.complete) ? themeAsset.bg : this.images.bg;
+
+        // Parallax scroll
         const parallaxX = -(this.cameraX * 0.4) % bgWidth;
 
         for (let x = parallaxX - bgWidth; x < this.width + bgWidth; x += bgWidth) {
-            if (this.images.bg.complete) {
-                this.ctx.drawImage(this.images.bg, x, bgY, bgWidth, bgHeight);
+            if (bgImg && bgImg.complete) {
+                this.ctx.drawImage(bgImg, x, bgY, bgWidth, bgHeight);
             } else {
                 this.ctx.fillStyle = "#70c5ce";
                 this.ctx.fillRect(0, 0, this.width, this.height);
@@ -123,7 +190,6 @@ class CanvasRenderer {
         this.ctx.fillStyle = "#ded895";
         this.ctx.fillRect(0, groundY, this.width, groundHeight);
 
-        // Grass border on ground
         this.ctx.fillStyle = "#73bf2e";
         this.ctx.fillRect(0, groundY, this.width, 6);
         this.ctx.fillStyle = "#000000";
@@ -132,23 +198,28 @@ class CanvasRenderer {
 
     renderPipes() {
         for (let mapData of this.maps) {
+            const themeId = mapData.theme_id || "classic_day";
+            const themeAsset = this.themeImages[themeId];
+
+            const topImg = (themeAsset && themeAsset.topPipe.complete) ? themeAsset.topPipe : this.images.topPipe;
+            const botImg = (themeAsset && themeAsset.bottomPipe.complete) ? themeAsset.bottomPipe : this.images.bottomPipe;
+
             for (let pipe of mapData.pipes) {
                 const screenX = pipe.x - this.cameraX;
 
-                // Culling: check if pipe is visible inside viewport
                 if (screenX + pipe.width < -50 || screenX > this.width + 50) continue;
 
                 // Top Pipe
-                if (this.images.topPipe.complete) {
-                    this.ctx.drawImage(this.images.topPipe, screenX, pipe.topY, pipe.width, pipe.height);
+                if (topImg && topImg.complete) {
+                    this.ctx.drawImage(topImg, screenX, pipe.topY, pipe.width, pipe.height);
                 } else {
                     this.ctx.fillStyle = "#74bf2e";
                     this.ctx.fillRect(screenX, pipe.topY, pipe.width, pipe.height);
                 }
 
                 // Bottom Pipe
-                if (this.images.bottomPipe.complete) {
-                    this.ctx.drawImage(this.images.bottomPipe, screenX, pipe.bottomY, pipe.width, pipe.height);
+                if (botImg && botImg.complete) {
+                    this.ctx.drawImage(botImg, screenX, pipe.bottomY, pipe.width, pipe.height);
                 } else {
                     this.ctx.fillStyle = "#74bf2e";
                     this.ctx.fillRect(screenX, pipe.bottomY, pipe.width, pipe.height);
@@ -158,12 +229,10 @@ class CanvasRenderer {
     }
 
     renderCheckpointsAndFinish() {
-        // Render Checkpoints
         for (let chk of this.checkpoints) {
             const screenX = chk.respawn_coordinate_x - this.cameraX;
             if (screenX < -50 || screenX > this.width + 50) continue;
 
-            // Render Checkpoint Banner / Line
             this.ctx.save();
             this.ctx.strokeStyle = "#3993d0";
             this.ctx.lineWidth = 4;
@@ -173,7 +242,6 @@ class CanvasRenderer {
             this.ctx.lineTo(screenX, 616);
             this.ctx.stroke();
 
-            // Checkpoint Flag / Icon
             this.ctx.fillStyle = "#3993d0";
             this.ctx.fillRect(screenX - 15, 40, 30, 20);
             this.ctx.fillStyle = "#ffffff";
@@ -183,13 +251,11 @@ class CanvasRenderer {
             this.ctx.restore();
         }
 
-        // Render Finish Line
         if (this.finishLineX > 0) {
             const finishScreenX = this.finishLineX - this.cameraX;
             if (finishScreenX >= -100 && finishScreenX <= this.width + 100) {
                 this.ctx.save();
 
-                // Checkered Finish Banner
                 const squareSize = 16;
                 for (let y = 0; y < 616; y += squareSize) {
                     for (let col = 0; col < 2; col++) {
@@ -199,7 +265,6 @@ class CanvasRenderer {
                     }
                 }
 
-                // FINISH LINE Text Header
                 this.ctx.fillStyle = "#f7d51d";
                 this.ctx.strokeStyle = "#000";
                 this.ctx.lineWidth = 4;
@@ -221,18 +286,15 @@ class CanvasRenderer {
 
             this.ctx.save();
 
-            // Floating oscillation animation
             const floatOffset = Math.sin(performance.now() / 200) * 4;
             const itemY = item.y + floatOffset;
 
-            // Question Box Container
             this.ctx.fillStyle = "#f7d51d";
             this.ctx.fillRect(screenX, itemY, 32, 32);
             this.ctx.strokeStyle = "#000";
             this.ctx.lineWidth = 3;
             this.ctx.strokeRect(screenX, itemY, 32, 32);
 
-            // Question mark ?
             this.ctx.fillStyle = "#000";
             this.ctx.font = "16px 'Press Start 2P'";
             this.ctx.textAlign = "center";
@@ -245,10 +307,7 @@ class CanvasRenderer {
     renderChains() {
         if (this.modeId !== "flappy_chained") return;
 
-        // Collect all birds in match and sort by chain_index
         const allBirds = [];
-        
-        // Local bird
         const localState = this.physics.predictedState;
         allBirds.push({
             id: this.physics.localPlayerId,
@@ -289,7 +348,6 @@ class CanvasRenderer {
             this.ctx.lineTo(screenXB, screenYB);
             this.ctx.stroke();
 
-            // Draw chain link nodes
             const midX = (screenXA + screenXB) / 2;
             const midY = (screenYA + screenYB) / 2;
             this.ctx.fillStyle = "#d0d0d0";
@@ -300,7 +358,6 @@ class CanvasRenderer {
     }
 
     renderBirds() {
-        // 1. Render Remote Birds
         for (let remote of this.physics.remotePlayers.values()) {
             const screenX = remote.x - this.cameraX;
             this.drawSingleBird(
@@ -314,7 +371,6 @@ class CanvasRenderer {
             );
         }
 
-        // 2. Render Local Bird
         const local = this.physics.predictedState;
         const localScreenX = local.x - this.cameraX;
         this.drawSingleBird(
@@ -331,18 +387,15 @@ class CanvasRenderer {
     drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal) {
         this.ctx.save();
 
-        // Calculate rotation tilt angle based on velocityY
         let rotationAngle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (velocityY * 0.1)));
 
         this.ctx.translate(x + 17, y + 12);
         this.ctx.rotate(rotationAngle);
 
-        // Bird Sprite key based on animation frame
         const birdImgKey = `bird${this.animFrame}`;
         const img = this.images[birdImgKey] || this.images.bird0;
 
         if (img && img.complete) {
-            // Apply Skin Color Tint via Canvas filter or overlay
             this.applySkinFilter(skinId);
             this.ctx.drawImage(img, -17, -12, 34, 24);
         } else {
@@ -350,12 +403,11 @@ class CanvasRenderer {
             this.ctx.fillRect(-17, -12, 34, 24);
         }
 
-        // Render Custom Hat on top of bird
+        // Draw Transparent Hat PNG on top of bird
         this.drawHat(hatId);
 
         this.ctx.restore();
 
-        // Render Name Tag & Local Player Arrow (Unrotated)
         this.ctx.save();
         this.ctx.fillStyle = isLocal ? "#f7d51d" : "#ffffff";
         this.ctx.strokeStyle = "#000000";
@@ -366,7 +418,6 @@ class CanvasRenderer {
         this.ctx.fillText(name, x + 17, y - 10);
 
         if (isLocal) {
-            // Little indicator arrow overhead
             this.ctx.fillStyle = "#55b02e";
             this.ctx.beginPath();
             this.ctx.moveTo(x + 17, y - 24);
@@ -379,18 +430,17 @@ class CanvasRenderer {
     }
 
     applySkinFilter(skinId) {
-        // Skin ID tints: 0: Yellow (normal), 1: Red, 2: Green, 3: Blue, 4: Gold
-        switch (skinId) {
-            case 1: // Red
+        switch (Number(skinId)) {
+            case 1:
                 this.ctx.filter = "hue-rotate(140deg) saturate(1.8)";
                 break;
-            case 2: // Green
+            case 2:
                 this.ctx.filter = "hue-rotate(240deg) saturate(1.5)";
                 break;
-            case 3: // Blue
+            case 3:
                 this.ctx.filter = "hue-rotate(40deg) saturate(1.8)";
                 break;
-            case 4: // Gold / Purple
+            case 4:
                 this.ctx.filter = "hue-rotate(90deg) saturate(2.5) brightness(1.2)";
                 break;
             default:
@@ -405,17 +455,34 @@ class CanvasRenderer {
     }
 
     drawHat(hatId) {
-        if (!hatId || hatId === 0) return;
+        if (!hatId || hatId === 0 || hatId === "none") return;
 
         this.ctx.save();
-        this.ctx.filter = "none"; // Reset filter so hat retains true color
+        this.ctx.filter = "none";
 
-        switch (hatId) {
+        // Map numerical ID or string ID to hat asset
+        const hatKeys = ["none", "crown", "top_hat", "cap", "viking"];
+        const hatKey = (typeof hatId === "number") ? hatKeys[hatId] : hatId;
+        const hatImg = this.hatImages[hatKey];
+
+        if (hatImg && hatImg.complete) {
+            // Draw transparent PNG hat centered on top of bird head (-16, -24)
+            this.ctx.drawImage(hatImg, -16, -26, 32, 32);
+        } else {
+            // Procedural fallback if image loading
+            this.drawProceduralHatFallback(hatId);
+        }
+
+        this.ctx.restore();
+    }
+
+    drawProceduralHatFallback(hatId) {
+        const idNum = Number(hatId);
+        switch (idNum) {
             case 1: // Golden Crown
                 this.ctx.fillStyle = "#f7d51d";
                 this.ctx.strokeStyle = "#000000";
                 this.ctx.lineWidth = 1;
-                // Crown spikes
                 this.ctx.beginPath();
                 this.ctx.moveTo(-10, -12);
                 this.ctx.lineTo(-10, -22);
@@ -431,20 +498,15 @@ class CanvasRenderer {
 
             case 2: // Top Hat
                 this.ctx.fillStyle = "#111111";
-                // Hat brim
                 this.ctx.fillRect(-14, -14, 28, 4);
-                // Hat body
                 this.ctx.fillRect(-8, -26, 16, 12);
-                // Ribbon
                 this.ctx.fillStyle = "#d9534f";
                 this.ctx.fillRect(-8, -16, 16, 3);
                 break;
 
             case 3: // Red Cap
                 this.ctx.fillStyle = "#d9534f";
-                // Visor
                 this.ctx.fillRect(-6, -14, 20, 3);
-                // Dome
                 this.ctx.beginPath();
                 this.ctx.arc(-2, -14, 10, Math.PI, 0);
                 this.ctx.fill();
@@ -453,15 +515,10 @@ class CanvasRenderer {
             case 4: // Viking Helmet
                 this.ctx.fillStyle = "#7f8c8d";
                 this.ctx.fillRect(-10, -16, 20, 6);
-                // Horns
                 this.ctx.fillStyle = "#f39c12";
-                // Left horn
                 this.ctx.fillRect(-14, -22, 4, 8);
-                // Right horn
                 this.ctx.fillRect(10, -22, 4, 8);
                 break;
         }
-
-        this.ctx.restore();
     }
 }

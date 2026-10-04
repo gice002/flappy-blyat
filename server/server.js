@@ -7,12 +7,12 @@ const LobbyManager = require("./game/lobbyManager");
 
 const app = express();
 
-// Trust reverse proxy for PaaS cloud deployments (Render, Railway, Fly.io, Cloudflare, Heroku)
+// Trust reverse proxy for PaaS cloud deployments
 app.set("trust proxy", 1);
 
 const server = http.createServer(app);
 
-// Socket.IO configuration with WSS / Reverse Proxy support
+// Socket.IO configuration
 const io = new Server(server, {
     cors: {
         origin: process.env.CORS_ORIGIN || "*",
@@ -29,7 +29,7 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 // Serve client static files
 app.use(express.static(path.join(__dirname, "../client")));
 
-// Health check endpoint for Cloud PaaS (Render / Railway / Fly.io health checks)
+// Health check endpoint
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -46,6 +46,14 @@ io.on("connection", (socket) => {
 
     socket.on("join_lobby", (data) => {
         lobbyManager.joinLobby(socket, data);
+    });
+
+    socket.on("leave_lobby", () => {
+        lobbyManager.leaveLobby(socket);
+    });
+
+    socket.on("kick_player", (data) => {
+        lobbyManager.kickPlayer(socket, data);
     });
 
     socket.on("update_customization", (data) => {

@@ -75,6 +75,74 @@ class LobbyManager {
         });
     }
 
+    leaveLobby(socket) {
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby) return;
+
+        // Host Migration: Reassign host role to next available player if leaving player is Host
+        if (lobby.host_ID === socket.id && lobby.players.size > 1) {
+            const remainingPlayers = Array.from(lobby.players.values()).filter(p => p.player_id !== socket.id);
+            const newHost = remainingPlayers[0];
+            lobby.host_ID = newHost.player_id;
+            newHost.ready_status = true; // New host auto-ready
+        }
+
+        lobby.removePlayer(socket.id);
+        this.playerLobbyMap.delete(socket.id);
+        socket.leave(lobbyId);
+
+        socket.emit("left_lobby");
+
+        if (lobby.players.size === 0) {
+            const engine = this.gameEngines.get(lobbyId);
+            if (engine) engine.stop();
+            this.gameEngines.delete(lobbyId);
+            this.lobbies.delete(lobbyId);
+        } else {
+            this.io.to(lobbyId).emit("lobby_updated", {
+                lobby: this.serializeLobby(lobby)
+            });
+        }
+    }
+
+    kickPlayer(socket, data) {
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby || lobby.host_ID !== socket.id) {
+            return socket.emit("error_message", { message: "Only the Host can kick players." });
+        }
+
+        const targetPlayerId = data.targetPlayerId;
+        if (!targetPlayerId || targetPlayerId === socket.id) {
+            return socket.emit("error_message", { message: "Cannot kick yourself." });
+        }
+
+        const targetPlayer = lobby.players.get(targetPlayerId);
+        if (targetPlayer) {
+            // Notify target player they were kicked
+            this.io.to(targetPlayerId).emit("player_kicked", {
+                message: "You have been kicked from the lobby by the Host."
+            });
+
+            const targetSocket = this.io.sockets.sockets.get(targetPlayerId);
+            if (targetSocket) {
+                targetSocket.leave(lobbyId);
+            }
+
+            lobby.removePlayer(targetPlayerId);
+            this.playerLobbyMap.delete(targetPlayerId);
+
+            this.io.to(lobbyId).emit("lobby_updated", {
+                lobby: this.serializeLobby(lobby)
+            });
+        }
+    }
+
     updateCustomization(socket, data) {
         const lobbyId = this.playerLobbyMap.get(socket.id);
         if (!lobbyId) return;
@@ -163,7 +231,7 @@ class LobbyManager {
         const engine = new GameEngine(lobby, this.io);
         this.gameEngines.set(lobbyId, engine);
 
-        // Notify clients match is starting (client can show 3-2-1 countdown UI)
+        // Notify clients match is starting
         this.io.to(lobbyId).emit("match_starting", {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
@@ -215,25 +283,7 @@ class LobbyManager {
     }
 
     handleDisconnect(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
-        if (!lobbyId) return;
-
-        const lobby = this.lobbies.get(lobbyId);
-        if (lobby) {
-            lobby.removePlayer(socket.id);
-            this.playerLobbyMap.delete(socket.id);
-
-            if (lobby.players.size === 0) {
-                const engine = this.gameEngines.get(lobbyId);
-                if (engine) engine.stop();
-                this.gameEngines.delete(lobbyId);
-                this.lobbies.delete(lobbyId);
-            } else {
-                this.io.to(lobbyId).emit("lobby_updated", {
-                    lobby: this.serializeLobby(lobby)
-                });
-            }
-        }
+        this.leaveLobby(socket);
     }
 
     serializeLobby(lobby) {
