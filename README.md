@@ -47,6 +47,9 @@ flappy-bird/
 │   │   └── mapGenerator.js# Dynamic map, pipe, checkpoint, and item box generator
 │   ├── models/            # Entity models (Player, Lobby, Mode, Map, Checkpoint, Leaderboard)
 │   └── server.js          # Express server and Socket.IO entry point
+├── Dockerfile             # Production containerization build setup
+├── .dockerignore          # Docker build exclusion rules
+├── .env.example           # Environment variables template
 ├── package.json           # Dependencies and npm scripts
 └── README.md              # Documentation
 ```
@@ -90,11 +93,41 @@ You should see output similar to:
 ```text
 ====================================================
  Flappy Bird Multiplayer Server running on port 3000
+ Environment: development
  Open http://localhost:3000 in your browser.
 ====================================================
 ```
 
 > **Note**: If port `3000` is already in use by another application, the server will automatically detect it and bind to `3001` or the next available port.
+
+---
+
+## ☁️ Production Deployment & Cloud Hosting
+
+This repository is pre-configured for cloud PaaS hosting (Render, Railway, Fly.io, Heroku, DigitalOcean) and containerized deployment via Docker.
+
+### Key Production Configurations
+
+* **WSS & Reverse Proxy**: Configured with `app.set('trust proxy', 1)` and Socket.IO WebSocket transport fallbacks required for cloud SSL reverse proxies.
+* **Environment Variables**: Managed via `.env` file with graceful fallbacks if `PORT` is not defined:
+  ```env
+  PORT=3000
+  NODE_ENV=production
+  CORS_ORIGIN=*
+  ```
+* **Health Check Endpoint**: Includes `/health` route returning HTTP 200 for cloud container readiness probes.
+
+### Deploying via Docker
+
+1. **Build Docker image**:
+   ```bash
+   docker build -t flappy-bird-online .
+   ```
+
+2. **Run Docker container**:
+   ```bash
+   docker run -p 3000:3000 --env-file .env flappy-bird-online
+   ```
 
 ---
 
