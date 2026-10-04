@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const hostResultsControls = document.getElementById("host-results-controls");
     const btnPlayAgain = document.getElementById("btn-play-again");
     const btnReturnToLobby = document.getElementById("btn-return-lobby");
-    const btnResultsLeaveRoom = document.getElementById("btn-results-leave-room");
+    const btnResultsExitMenu = document.getElementById("btn-results-exit-menu");
     const waitingHostText = document.getElementById("waiting-host-text");
 
     // Settings Inputs
@@ -518,8 +518,8 @@ document.addEventListener("DOMContentLoaded", () => {
             waitingHostText.style.display = "block";
         }
         // LEAVE ROOM button is ALWAYS visible for ALL players!
-        if (btnResultsLeaveRoom) {
-            btnResultsLeaveRoom.style.display = "inline-block";
+        if (btnResultsExitMenu) {
+            btnResultsExitMenu.style.display = "inline-block";
         }
     }
 
