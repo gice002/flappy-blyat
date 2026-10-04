@@ -363,5 +363,35 @@ When a player uses an item, process the following logic. Both duration-based ite
 
 Please provide the modular code updates to handle the spawning, collision detection, socket events for attacks, and the rendering logic for the new UI and visual effects.
 
+================================================================================
+PROMPT 13
+================================================================================
+Act as a Senior Full-Stack Game Developer. We need to fix a critical collision bug, resolve a UI rendering issue in the dressing room, and implement a synchronized loading screen before a match starts.
+
+Please implement the following exact requirements in the relevant files (gameManager.js, client.js, ui.js, etc.):
+
+1. Fix: Invincibility/Collision Bug upon Item Use
+
+    Symptom: When a player uses ANY item, they become completely invincible, passing through pipes and sliding on the ground without dying.
+
+    Fix: The item activation logic is likely stripping the player's collision mask, overriding their state, or removing them from the collision detection loop. Ensure that using an item (like Ink or Curse) does NOT modify the player's physical hitbox or bypass the pipe/ground collision checks. The Shield item should only block negative item effects, NOT physical collisions with the map.
+
+2. Fix: Dressing Room Sprite Rendering
+
+    Symptom: In the main menu "CUSTOMIZE BIRD" section, the preview shows a CSS-styled colored square instead of the actual bird sprite and hat images. There are no console errors.
+
+    Fix: Update the HTML/DOM logic in ui.js or index.html. Replace the colored placeholder <div> with actual <img> tags (or a mini <canvas>). Ensure it dynamically updates the src to point to the correct bird color sprite and hat asset whenever the user cycles through the customization options.
+
+3. Feature: Synchronized Loading Screen with Timeout
+
+    Implementation: When a lobby is full or the host clicks "Start", do not instantly spawn players into the gameplay. Instead, transition all clients in the room to a "Loading Screen".
+
+    UI Display: The loading screen must display a status text like: Waiting for players... (X/N Ready).
+
+    Synchronization: Clients must emit a client_ready socket event to the server once their local assets (images/sounds) are fully loaded. The server tracks this ready count and updates the clients' UI.
+
+    Timeout & Kick Logic (Server-side): When the loading phase begins, the server starts a 15-second timer. If all players emit client_ready before the timer ends, the game starts immediately. If the timer hits 0 and someone is still not ready, the server must automatically kick the unready player(s) from the room and start the game for the remaining ready players.
+
+
 
 

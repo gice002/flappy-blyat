@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const screens = {
         mainMenu: document.getElementById("screen-main-menu"),
         lobbyRoom: document.getElementById("screen-lobby"),
+        loadingScreen: document.getElementById("screen-loading"),
         gameView: document.getElementById("screen-game"),
         resultsView: document.getElementById("screen-results")
     };
@@ -125,13 +126,43 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    const skinFilters = [
+        "none",
+        "hue-rotate(140deg) saturate(1.8)", // Crimson Red
+        "hue-rotate(80deg) saturate(1.5)",  // Emerald Green
+        "hue-rotate(200deg) saturate(1.5)", // Ocean Blue
+        "hue-rotate(280deg) saturate(1.5)"  // Royal Gold
+    ];
+
+    const hatSources = [
+        "", // None
+        "assets/hats/hat_crown.png",
+        "assets/hats/hat_top.png",
+        "assets/hats/hat_cap.png",
+        "assets/hats/hat_viking.png"
+    ];
+
     // Update customization preview
     function updateCustomizationUI() {
         skinNameLabel.textContent = skins[window.playerSkinId];
         hatNameLabel.textContent = hats[window.playerHatId];
 
-        const skinColors = ["#f7d51d", "#d9534f", "#55b02e", "#3993d0", "#9b59b6"];
-        previewBirdEl.style.backgroundColor = skinColors[window.playerSkinId];
+        const birdImg = document.getElementById("preview-bird-img");
+        const hatImg = document.getElementById("preview-hat-img");
+
+        if (birdImg) {
+            birdImg.style.filter = skinFilters[window.playerSkinId] || "none";
+        }
+
+        if (hatImg) {
+            const hatSrc = hatSources[window.playerHatId];
+            if (hatSrc) {
+                hatImg.src = hatSrc;
+                hatImg.style.display = "block";
+            } else {
+                hatImg.style.display = "none";
+            }
+        }
 
         if (currentLobby) {
             socket.emit("update_customization", {
@@ -452,6 +483,37 @@ document.addEventListener("DOMContentLoaded", () => {
             waitingHostText.style.display = "block";
         }
     }
+
+    const loadingStatusText = document.getElementById("loading-status-text");
+
+    // Match Loading Screen & Synchronization Handlers
+    socket.on("match_loading", (data) => {
+        stopGameLoop();
+        currentLobby = data.lobby;
+        showScreen("loadingScreen");
+        renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
+
+        if (loadingStatusText) {
+            loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
+        }
+
+        // Emit client_ready to server once local loading is complete
+        socket.emit("client_ready");
+    });
+
+    socket.on("loading_progress", (data) => {
+        if (loadingStatusText) {
+            loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
+        }
+    });
+
+    socket.on("kicked", (data) => {
+        stopGameLoop();
+        currentLobby = null;
+        clearLocalPlayerState();
+        showScreen("mainMenu");
+        alert(data.message || "You have been kicked from the room.");
+    });
 
     // Match Start Handler
     socket.on("match_starting", (data) => {

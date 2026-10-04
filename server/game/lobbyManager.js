@@ -230,33 +230,7 @@ class LobbyManager {
         }
 
         // Generate Maps, Checkpoints, and Item Boxes
-        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId, lobby.mode_id);
-        lobby.maps = mapData.maps;
-        lobby.checkpoints = mapData.checkpoints;
-        lobby.itemBoxes = mapData.itemBoxes;
-        lobby.startCheckpointId = mapData.startCheckpointId;
-        lobby.finishLineX = mapData.finishLineX;
-        lobby.totalPipes = mapData.totalPipes;
-
-        // Initialize GameEngine
-        const engine = new GameEngine(lobby, this.io);
-        this.gameEngines.set(lobbyId, engine);
-
-        // Notify clients match is starting
-        this.io.to(lobbyId).emit("match_starting", {
-            lobby: this.serializeLobby(lobby),
-            maps: lobby.maps,
-            checkpoints: Array.from(lobby.checkpoints.values()),
-            itemBoxes: lobby.itemBoxes,
-            finishLineX: lobby.finishLineX,
-            totalPipes: lobby.totalPipes,
-            countdownSeconds: 3
-        });
-
-        // Launch physics engine after 3s countdown
-        setTimeout(() => {
-            engine.start();
-        }, 3000);
+        this.initiateLoadingPhase(lobby);
     }
 
     playAgain(socket) {
@@ -272,7 +246,13 @@ class LobbyManager {
         const oldEngine = this.gameEngines.get(lobbyId);
         if (oldEngine) oldEngine.stop();
 
-        // Generate new maps & checkpoints
+        this.initiateLoadingPhase(lobby);
+    }
+
+    initiateLoadingPhase(lobby) {
+        const lobbyId = lobby.Lobby_id;
+
+        // Generate Maps, Checkpoints, and Item Boxes
         const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId, lobby.mode_id);
         lobby.maps = mapData.maps;
         lobby.checkpoints = mapData.checkpoints;
@@ -281,9 +261,108 @@ class LobbyManager {
         lobby.finishLineX = mapData.finishLineX;
         lobby.totalPipes = mapData.totalPipes;
 
-        const newEngine = new GameEngine(lobby, this.io);
-        this.gameEngines.set(lobbyId, newEngine);
+        lobby.status = "loading";
+        lobby.loadingReadyPlayers.clear();
 
+        if (lobby.loadingTimer) {
+            clearTimeout(lobby.loadingTimer);
+        }
+
+        // 15-second loading timeout timer on server
+        lobby.loadingTimer = setTimeout(() => {
+            this.handleLoadingTimeout(lobbyId);
+        }, 15000);
+
+        this.io.to(lobbyId).emit("match_loading", {
+            lobby: this.serializeLobby(lobby),
+            maps: lobby.maps,
+            checkpoints: Array.from(lobby.checkpoints.values()),
+            itemBoxes: lobby.itemBoxes,
+            finishLineX: lobby.finishLineX,
+            totalPipes: lobby.totalPipes,
+            readyCount: 0,
+            totalPlayers: lobby.players.size
+        });
+    }
+
+    clientReady(socket) {
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby || lobby.status !== "loading") return;
+
+        lobby.loadingReadyPlayers.add(socket.id);
+        const readyCount = lobby.loadingReadyPlayers.size;
+        const totalPlayers = lobby.players.size;
+
+        this.io.to(lobbyId).emit("loading_progress", {
+            readyCount: readyCount,
+            totalPlayers: totalPlayers
+        });
+
+        if (readyCount >= totalPlayers) {
+            this.startMatchFromLoading(lobbyId);
+        }
+    }
+
+    handleLoadingTimeout(lobbyId) {
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby || lobby.status !== "loading") return;
+
+        if (lobby.loadingTimer) {
+            clearTimeout(lobby.loadingTimer);
+            lobby.loadingTimer = null;
+        }
+
+        // Find unready players
+        const unreadyPlayerIds = [];
+        for (let pId of lobby.players.keys()) {
+            if (!lobby.loadingReadyPlayers.has(pId)) {
+                unreadyPlayerIds.push(pId);
+            }
+        }
+
+        // Kick unready players
+        for (let kickId of unreadyPlayerIds) {
+            const kickSocket = this.io.sockets.sockets.get(kickId);
+            if (kickSocket) {
+                kickSocket.emit("kicked", { message: "You have been kicked (Loading Timeout - Failed to load in time)." });
+                kickSocket.leave(lobbyId);
+            }
+            this.playerLobbyMap.delete(kickId);
+            lobby.removePlayer(kickId);
+        }
+
+        // Notify remaining players in room
+        this.io.to(lobbyId).emit("lobby_updated", {
+            lobby: this.serializeLobby(lobby)
+        });
+
+        if (lobby.players.size === 0) {
+            this.destroyLobby(lobbyId);
+            return;
+        }
+
+        this.startMatchFromLoading(lobbyId);
+    }
+
+    startMatchFromLoading(lobbyId) {
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby || lobby.status !== "loading") return;
+
+        if (lobby.loadingTimer) {
+            clearTimeout(lobby.loadingTimer);
+            lobby.loadingTimer = null;
+        }
+
+        lobby.status = "playing";
+
+        // Initialize GameEngine
+        const engine = new GameEngine(lobby, this.io);
+        this.gameEngines.set(lobbyId, engine);
+
+        // Notify clients match is starting (3s countdown)
         this.io.to(lobbyId).emit("match_starting", {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
@@ -295,7 +374,7 @@ class LobbyManager {
         });
 
         setTimeout(() => {
-            newEngine.start();
+            engine.start();
         }, 3000);
     }
 

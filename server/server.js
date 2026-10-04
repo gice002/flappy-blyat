@@ -92,6 +92,10 @@ io.on("connection", (socket) => {
         lobbyManager.useItem(socket);
     });
 
+    socket.on("client_ready", () => {
+        lobbyManager.clientReady(socket);
+    });
+
     socket.on("disconnect", () => {
         console.log(`[Socket] Client disconnected: ${socket.id}`);
         lobbyManager.handleDisconnect(socket);

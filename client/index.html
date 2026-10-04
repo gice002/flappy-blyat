@@ -24,7 +24,10 @@
                 <div class="customization-section">
                     <label>CUSTOMIZE BIRD</label>
                     <div class="preview-box">
-                        <div id="preview-bird" class="preview-bird"></div>
+                        <div id="preview-bird" class="preview-bird" style="position: relative; width: 48px; height: 36px; display: flex; align-items: center; justify-content: center; background: transparent; border: none;">
+                            <img id="preview-bird-img" src="assets/flappybird0.png" style="width: 34px; height: 24px; object-fit: contain;" alt="Bird" />
+                            <img id="preview-hat-img" src="" style="position: absolute; top: -12px; left: 12px; width: 24px; height: 24px; object-fit: contain; display: none;" alt="Hat" />
+                        </div>
                     </div>
 
                     <div class="option-selector">
@@ -102,6 +105,22 @@
                         <input type="text" class="chat-input" id="lobby-chat-input" placeholder="Type a message..." maxlength="80" autocomplete="off">
                         <button class="btn btn-small btn-primary" id="btn-lobby-send-chat">SEND</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN: SYNCHRONIZED LOADING SCREEN -->
+        <div id="screen-loading" class="screen">
+            <div class="card" style="width: 440px; text-align: center;">
+                <h1 class="game-title">PREPARING MATCH</h1>
+                <div style="margin: 20px 0;">
+                    <div style="font-size: 32px; animation: pulse 1s infinite;">⏳</div>
+                    <div id="loading-status-text" style="font-size: 11px; color: #f7d51d; margin-top: 14px; text-shadow: 1px 1px 0 #000;">
+                        Waiting for players... (0/0 Ready)
+                    </div>
+                </div>
+                <div style="font-size: 8px; color: #eee; margin-top: 10px; line-height: 1.4;">
+                    Syncing map assets and physics engine...
                 </div>
             </div>
         </div>
