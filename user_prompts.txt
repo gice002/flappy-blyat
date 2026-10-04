@@ -199,3 +199,55 @@ Please fix these exact bugs with the following requirements:
     Fix (ui.js): The DOM element containing the chat messages is not being emptied. Add explicit logic to clear the chat container (e.g., chatMessagesContainer.innerHTML = '';) immediately when the "Leave Room" action is triggered or right before a player joins a new lobby.
 
 Please provide the targeted code patches for client.js, gameManager.js, and ui.js to implement these cleanup routines.
+
+================================================================================
+PROMPT 8
+================================================================================
+Act as a Senior Full-Stack Game Developer. The visual rendering for the chain in "Mode B: Flappy Chained" is currently working perfectly, so please DO NOT modify the canvas drawing logic for the chain lines.
+
+However, I need you to fix the spawning and movement logic for this mode to prevent the birds from overlapping into a single unreadable blob.
+
+Please update the gameManager.js (Server) and client.js (Client) with the following exact constraints for the Chained Mode:
+
+1. Horizontal Spawn Spacing (X-axis Offset)
+
+    When spawning players at the start of a map or respawning them at a checkpoint, DO NOT spawn them at the exact same X coordinate.
+
+    Apply a fixed horizontal offset (e.g., 50px or 60px) based on the player's index in the lobby array.
+
+    Example Formation: Player 0 spawns at the checkpoint's base X. Player 1 spawns at X - 60. Player 2 spawns at X - 120. Player 3 spawns at X - 180. This creates a horizontal "train" formation.
+
+2. Fixed Distance Maintenance (Strict X-axis Lock)
+
+    Throughout the gameplay, these players must maintain this exact horizontal spacing.
+
+    Ensure the forward X-velocity for all chained players is strictly identical. No player can fly faster or overtake another player on the X-axis.
+
+    Players should only move independently on the Y-axis (flapping/falling). The horizontal distance between each bird must remain perfectly constant, keeping the chain taut and visually clean.
+
+Please provide the targeted logic updates for calculating these spawn offsets and locking the X-axis movement updates specifically for the Chained Mode.
+
+================================================================================
+PROMPT 9
+================================================================================
+Act as a Senior Full-Stack Game Developer. I have attached a .zip file containing new visual assets for the game (backgrounds, pipes, and possibly hats).
+
+Please perform the following tasks:
+
+1. Asset Processing & Auto-Configuration
+
+    Extract the provided .zip file.
+
+    Organize the extracted images into the appropriate public directories (e.g., public/assets/backgrounds/, public/assets/pipes/).
+
+    Automatically update the assets.json (or your centralized asset config file) to register all these new images as available map_themes. Ensure the themes correctly pair the new backgrounds with the new pipes.
+
+2. Map Generation Balance (Pipe Spacing & Randomization)
+
+    I want to balance the game to be slightly more forgiving and focused on item usage.
+
+    X-Axis Spacing: Significantly increase the default horizontal distance (pipe_spacing) between each pipe on the map. There should be a wider horizontal gap than standard Flappy Bird to allow players time to react and grab items.
+
+    Y-Axis Gap Randomization: Currently, the Y-position of the gap is randomized, but I want you to also randomize the vertical gap size (the vertical space between the top pipe and bottom pipe). Implement a logic that assigns a random gap size for each pipe within a safe min/max range (e.g., min_gap = 150, max_gap = 250) so it never generates an impossible pipe.
+
+Please provide the updated gameManager.js (or map generator module) logic for the pipe spacing, and confirm the paths/config structure for the newly extracted assets.

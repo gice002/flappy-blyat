@@ -1,10 +1,10 @@
 {
   "hats": [
     { "id": "none", "name": "None", "src": "" },
-    { "id": "crown", "name": "Golden Crown", "src": "assets/hat_crown.png" },
-    { "id": "top_hat", "name": "Top Hat", "src": "assets/hat_top.png" },
-    { "id": "cap", "name": "Red Baseball Cap", "src": "assets/hat_cap.png" },
-    { "id": "viking", "name": "Viking Helmet", "src": "assets/hat_viking.png" }
+    { "id": "crown", "name": "Golden Crown", "src": "assets/hats/hat_crown.png" },
+    { "id": "top_hat", "name": "Top Hat", "src": "assets/hats/hat_top.png" },
+    { "id": "cap", "name": "Red Baseball Cap", "src": "assets/hats/hat_cap.png" },
+    { "id": "viking", "name": "Viking Helmet", "src": "assets/hats/hat_viking.png" }
   ],
   "map_themes": [
     {
@@ -15,18 +15,39 @@
       "pipe_bottom_src": "assets/bottompipe.png"
     },
     {
-      "theme_id": "retro_night",
-      "name": "Retro Night",
-      "bg_src": "assets/flappybirdbg_night.png",
-      "pipe_top_src": "assets/toppipe_night.png",
-      "pipe_bottom_src": "assets/bottompipe_night.png"
+      "theme_id": "underwater",
+      "name": "Underwater Realm",
+      "bg_src": "assets/backgrounds/bg_underwater.png",
+      "pipe_top_src": "assets/pipes/toppipe_underwater.png",
+      "pipe_bottom_src": "assets/pipes/bottompipe_underwater.png"
     },
     {
-      "theme_id": "desert_dusk",
-      "name": "Desert Dusk",
-      "bg_src": "assets/flappybirdbg_dusk.png",
-      "pipe_top_src": "assets/toppipe_dusk.png",
-      "pipe_bottom_src": "assets/bottompipe_dusk.png"
+      "theme_id": "volcano",
+      "name": "Volcano Inferno",
+      "bg_src": "assets/backgrounds/bg_volcano.png",
+      "pipe_top_src": "assets/pipes/toppipe_volcano.png",
+      "pipe_bottom_src": "assets/pipes/bottompipe_volcano.png"
+    },
+    {
+      "theme_id": "snowy",
+      "name": "Snowy Tundra",
+      "bg_src": "assets/backgrounds/bg_snowy.png",
+      "pipe_top_src": "assets/pipes/toppipe_snowy.png",
+      "pipe_bottom_src": "assets/pipes/bottompipe_snowy.png"
+    },
+    {
+      "theme_id": "candyland",
+      "name": "Candy Land",
+      "bg_src": "assets/backgrounds/bg_candyland.png",
+      "pipe_top_src": "assets/pipes/toppipe_candyland.png",
+      "pipe_bottom_src": "assets/pipes/bottompipe_candyland.png"
+    },
+    {
+      "theme_id": "desert",
+      "name": "Desert Dunes",
+      "bg_src": "assets/backgrounds/bg_desert.png",
+      "pipe_top_src": "assets/pipes/toppipe_desert.png",
+      "pipe_bottom_src": "assets/pipes/bottompipe_desert.png"
     }
   ]
 }

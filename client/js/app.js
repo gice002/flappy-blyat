@@ -454,9 +454,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const startChk = data.checkpoints.find(c => c.checkpoint_id === data.lobby.startCheckpointId);
         const startX = startChk ? startChk.respawn_coordinate_x : 100;
         const startY = startChk ? startChk.respawn_coordinate_y : 320;
+
+        // Calculate Chained Mode spawn offset for local player prediction
+        let myChainIdx = 0;
+        if (currentLobby && currentLobby.players) {
+            const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
+            if (myPlayer && myPlayer.chain_index !== undefined) {
+                myChainIdx = myPlayer.chain_index;
+            }
+        }
+        const chainedOffset = (currentLobby.mode_id === "flappy_chained") ? (myChainIdx * 60) : 0;
         
         // Strict state wipe for physics prediction & remote tracking on match start
-        physics.resetLocalState(startX, startY);
+        physics.resetLocalState(startX - chainedOffset, startY);
 
         let count = data.countdownSeconds || 3;
         startCountdownEl.style.display = "block";

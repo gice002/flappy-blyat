@@ -1,7 +1,14 @@
 const MapData = require("../models/Map");
 const Checkpoint = require("../models/Checkpoint");
 
-const THEMES = ["classic_day", "retro_night", "desert_dusk"];
+const THEMES = [
+    "classic_day",
+    "underwater",
+    "volcano",
+    "snowy",
+    "candyland",
+    "desert"
+];
 
 function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
     const maps = [];
@@ -10,9 +17,17 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
 
     const pipeWidth = 64;
     const pipeHeight = 512;
-    const openingSpace = 160;
-    const pipeSpacingX = 250;
-    const startX = 500;
+    const boardHeight = 640;
+    const groundY = 616;
+
+    // BALANCED GAMEPLAY PARAMETERS
+    // Increased horizontal distance between pipes (from 250px to 380px) for forgiving item gameplay
+    const pipeSpacingX = 380;
+    const startX = 600;
+
+    // Randomized Vertical Opening Gap range (Min 160px, Max 240px)
+    const MIN_GAP = 160;
+    const MAX_GAP = 240;
 
     let pipeIndexCounter = 0;
     let currentX = startX;
@@ -34,7 +49,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
         const itemXList = [];
         const itemYList = [];
 
-        // Assign theme sequence based on map sequence
+        // Pick theme from registered themes
         const themeId = THEMES[(m - 1) % THEMES.length];
 
         const mapSpawnX = (m === 1) ? 100 : (currentX - pipeSpacingX + 100);
@@ -42,9 +57,18 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
 
         for (let i = 1; i <= 10; i++) {
             pipeIndexCounter++;
-            const randomPipeTopY = -200 - Math.floor(Math.random() * 180);
-            const topY = randomPipeTopY;
-            const bottomY = randomPipeTopY + pipeHeight + openingSpace;
+
+            // Dynamic Y-Axis Gap Randomization per pipe
+            const gapSize = Math.floor(Math.random() * (MAX_GAP - MIN_GAP + 1)) + MIN_GAP;
+
+            // Calculate safe top pipe Y position
+            // Min top pipe visible height: 60px, Max top pipe visible height: boardHeight - gapSize - 60px
+            const maxVisibleTopHeight = groundY - gapSize - 60;
+            const minVisibleTopHeight = 60;
+            const visibleTopHeight = Math.floor(Math.random() * (maxVisibleTopHeight - minVisibleTopHeight + 1)) + minVisibleTopHeight;
+
+            const topY = visibleTopHeight - pipeHeight;
+            const bottomY = topY + pipeHeight + gapSize;
 
             mapPipes.push({
                 pipeIndex: pipeIndexCounter,
@@ -56,12 +80,14 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId) {
                 topY: topY,
                 bottomY: bottomY,
                 topHeight: pipeHeight,
-                bottomHeight: pipeHeight
+                bottomHeight: pipeHeight,
+                gapSize: gapSize
             });
 
-            if (i === 3 || i === 7) {
+            // Add item boxes in spacious gap between pipes (e.g. pipe 3, 5, 8 of each map)
+            if (i === 3 || i === 5 || i === 8) {
                 const itemX = currentX + Math.floor(pipeSpacingX / 2);
-                const itemY = topY + pipeHeight + Math.floor(openingSpace / 2) - 16;
+                const itemY = topY + pipeHeight + Math.floor(gapSize / 2) - 16;
                 itemXList.push(itemX);
                 itemYList.push(itemY);
 

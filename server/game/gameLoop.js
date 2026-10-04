@@ -8,6 +8,7 @@ const GROUND_Y = 616; // 640 - 24
 const GRAVITY = 0.4;
 const JUMP_VELOCITY = -6;
 const FORWARD_VELOCITY = 2.0;
+const CHAIN_SPACING_X = 60; // Fixed horizontal spacing offset for Chained Mode
 
 class GameEngine {
     constructor(lobby, io) {
@@ -24,16 +25,18 @@ class GameEngine {
         this.lobby.finishTimerStart = null;
         this.tickCount = 0;
 
-        // Reset all players to start checkpoint
+        // Reset all players to start checkpoint with strict horizontal offset in Chained Mode
         const startCheckpoint = this.lobby.checkpoints.get(this.lobby.startCheckpointId);
         const startX = startCheckpoint ? startCheckpoint.respawn_coordinate_x : 100;
         const startY = startCheckpoint ? startCheckpoint.respawn_coordinate_y : 320;
 
         let chainIdx = 0;
         for (let player of this.lobby.players.values()) {
-            player.resetForMatch(startX - (chainIdx * 40), startY, this.lobby.startCheckpointId);
-            player.chain_index = chainIdx++;
+            player.chain_index = chainIdx;
+            const xOffset = (this.lobby.mode_id === "flappy_chained") ? (chainIdx * CHAIN_SPACING_X) : 0;
+            player.resetForMatch(startX - xOffset, startY, this.lobby.startCheckpointId);
             this.inputQueues.set(player.player_id, []);
+            chainIdx++;
         }
 
         this.loopInterval = setInterval(() => {
@@ -77,7 +80,7 @@ class GameEngine {
                 player.last_processed_input = input.sequence;
             }
 
-            // Apply forward velocity & gravity
+            // Apply strict uniform forward X velocity & individual Y gravity
             player.x += FORWARD_VELOCITY;
             player.velocityY += GRAVITY;
             player.y = Math.max(0, player.y + player.velocityY);
@@ -155,7 +158,6 @@ class GameEngine {
     }
 
     updatePlayerProgress(player) {
-        // Collect all pipes from maps
         let allPipes = [];
         for (let mapData of this.lobby.maps) {
             allPipes.push(...mapData.pipes);
@@ -166,7 +168,6 @@ class GameEngine {
                 if (pipe.pipeIndex > player.last_pipe_passed) {
                     player.last_pipe_passed = pipe.pipeIndex;
 
-                    // Checkpoint logic: strictly every 10 pipes
                     const checkpointNum = Math.floor(pipe.pipeIndex / 10);
                     if (pipe.pipeIndex % 10 === 0 && checkpointNum > 0) {
                         const chkId = `chk_${this.lobby.Lobby_id}_${checkpointNum}`;
@@ -180,12 +181,10 @@ class GameEngine {
     }
 
     checkCollisions(player) {
-        // Ground collision
         if (player.y + BIRD_HEIGHT >= GROUND_Y) {
             return true;
         }
 
-        // Pipe collisions
         let allPipes = [];
         for (let mapData of this.lobby.maps) {
             allPipes.push(...mapData.pipes);
@@ -194,7 +193,6 @@ class GameEngine {
         const birdBox = { x: player.x, y: player.y, width: BIRD_WIDTH, height: BIRD_HEIGHT };
 
         for (let pipe of allPipes) {
-            // Optimization: only check pipes near player
             if (pipe.x > player.x + 100 || pipe.x + pipe.width < player.x - 50) continue;
 
             const topPipeBox = { x: pipe.x, y: pipe.topY, width: pipe.width, height: pipe.height };
@@ -220,7 +218,6 @@ class GameEngine {
                 item.collected = true;
                 item.collectedBy = player.player_id;
 
-                // Broadcast item collection event (Item effect is null/placeholder)
                 this.io.to(this.lobby.Lobby_id).emit("item_collected", {
                     itemId: item.id,
                     playerId: player.player_id,
@@ -244,11 +241,13 @@ class GameEngine {
 
     respawnPlayerAtCheckpoint(player, checkpointId) {
         const chk = this.lobby.checkpoints.get(checkpointId);
+        const xOffset = (this.lobby.mode_id === "flappy_chained") ? (player.chain_index * CHAIN_SPACING_X) : 0;
+
         if (chk) {
-            player.x = chk.respawn_coordinate_x;
+            player.x = chk.respawn_coordinate_x - xOffset;
             player.y = chk.respawn_coordinate_y;
         } else {
-            player.x = 100;
+            player.x = 100 - xOffset;
             player.y = 320;
         }
         player.velocityY = 0;
@@ -300,23 +299,17 @@ class GameEngine {
         this.stop();
         this.lobby.status = "finished";
 
-        // Generate Leaderboard
         const playerList = Array.from(this.lobby.players.values());
         
-        // Separate finished vs DNF
         const finishedPlayers = playerList.filter(p => p.is_finished);
         const dnfPlayers = playerList.filter(p => !p.is_finished);
 
-        // Sort finished players by finish_time (or x if tied)
         finishedPlayers.sort((a, b) => parseFloat(a.finish_time) - parseFloat(b.finish_time));
-        
-        // Sort DNF players by last_pipe_passed descending
         dnfPlayers.sort((a, b) => b.last_pipe_passed - a.last_pipe_passed);
 
         const leaderboardEntries = [];
         let rank = 1;
 
-        // Finisher entries
         for (let p of finishedPlayers) {
             const lbEntry = new LeaderboardEntry(
                 `lb_${this.lobby.Lobby_id}_${p.player_id}`,
@@ -330,7 +323,6 @@ class GameEngine {
             leaderboardEntries.push(lbEntry);
         }
 
-        // DNF entries: "[ OUT ] CRASHED AT PIPE X" or "CRASHED AT PIPE X"
         for (let p of dnfPlayers) {
             const pipeNum = p.last_pipe_passed || p.crashed_at_pipe || 0;
             const statusStr = `[ OUT ] CRASHED AT PIPE ${pipeNum}`;
