@@ -27,6 +27,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
 
     let pipeIndexCounter = 0;
     let currentX = startX;
+    let computedFinishLineX = 0;
 
     // Initial starting checkpoint 0
     const startCheckpointId = `chk_${lobbyId}_0`;
@@ -60,42 +61,46 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
             pipeIndexCounter++;
 
             if (i === 10) {
-                // 10th pipe slot is REPLACED by a dedicated Checkpoint Zone (no pipe obstacle)
                 const respawnX = currentX + Math.floor(pipeSpacingX / 2);
                 const respawnY = 320;
 
-                // Pre-Checkpoint Item Column
-                if (modeId !== "flappy_chained") {
-                    const preChkItemX = respawnX - 140;
-                    for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
-                        const boxY = 160 + (boxIdx * 40);
+                if (isFinalMap) {
+                    // On the final map, slot 10 is the clean Finish Line Zone (NO checkpoints or item boxes)
+                    computedFinishLineX = respawnX;
+                } else {
+                    // Intermediate map Checkpoint Zone
+                    if (modeId !== "flappy_chained") {
+                        const preChkItemX = respawnX - 140;
+                        for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
+                            const boxY = 160 + (boxIdx * 40);
 
-                        itemXList.push(preChkItemX);
-                        itemYList.push(boxY);
+                            itemXList.push(preChkItemX);
+                            itemYList.push(boxY);
 
-                        itemBoxes.push({
-                            id: `item_${lobbyId}_chk_pre_${m}_${boxIdx}`,
-                            x: preChkItemX,
-                            y: boxY,
-                            width: 32,
-                            height: 32,
-                            collected: false,
-                            isActive: true,
-                            collectedBy: null
-                        });
+                            itemBoxes.push({
+                                id: `item_${lobbyId}_chk_pre_${m}_${boxIdx}`,
+                                x: preChkItemX,
+                                y: boxY,
+                                width: 32,
+                                height: 32,
+                                collected: false,
+                                isActive: true,
+                                collectedBy: null
+                            });
+                        }
                     }
+
+                    const checkpointObj = new Checkpoint(
+                        checkpointId,
+                        mapId,
+                        respawnX,
+                        respawnY,
+                        pipeIndexCounter
+                    );
+                    checkpoints.set(checkpointId, checkpointObj);
                 }
 
-                const checkpointObj = new Checkpoint(
-                    checkpointId,
-                    mapId,
-                    respawnX,
-                    respawnY,
-                    pipeIndexCounter
-                );
-                checkpoints.set(checkpointId, checkpointObj);
-
-                // Expand Checkpoint Zone spacing to PIPE_SPACING_X * 2 (760px)
+                // Expand Zone spacing to PIPE_SPACING_X * 2 (760px)
                 currentX += pipeSpacingX * 2;
                 continue;
             }
@@ -171,7 +176,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
 
     const lastMapPipes = maps[maps.length - 1].pipes;
     const lastPipe = lastMapPipes[lastMapPipes.length - 1];
-    const finishLineX = lastPipe ? (lastPipe.x + pipeWidth + 380) : currentX;
+    const finishLineX = computedFinishLineX || (lastPipe ? (lastPipe.x + pipeWidth + 380) : currentX);
 
     return {
         maps,

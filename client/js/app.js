@@ -6,6 +6,14 @@ window.playerHatId = 0;
 document.addEventListener("DOMContentLoaded", () => {
     // Socket.IO client initialization
     const socket = io();
+    window.socket = socket;
+
+    socket.on("connect", () => {
+        if (socket.id) {
+            localPlayerId = socket.id;
+            physics.setLocalPlayerId(socket.id);
+        }
+    });
 
     // DOM Screens
     const screens = {

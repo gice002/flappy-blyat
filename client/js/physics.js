@@ -96,6 +96,10 @@ class PhysicsEngine {
     reconcileServerSnapshot(snapshot) {
         if (!snapshot || !snapshot.players) return;
 
+        if (!this.localPlayerId && typeof window !== "undefined" && window.socket && window.socket.id) {
+            this.localPlayerId = window.socket.id;
+        }
+
         // Build active player ID set from snapshot to prune disconnected / stale ghosts
         const activeServerPlayerIds = new Set(snapshot.players.map(p => p.player_id));
 

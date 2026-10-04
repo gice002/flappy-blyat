@@ -720,14 +720,19 @@ class CanvasRenderer {
         playersList.sort((a, b) => b.x - a.x);
         const rankLabels = ["1st", "2nd", "3rd", "4th"];
 
-        const totalDist = Math.max(1, this.finishLineX - 100);
+        const effectiveFinishLineX = (this.finishLineX && this.finishLineX > 500) 
+            ? this.finishLineX 
+            : ((this.checkpoints && this.checkpoints.length > 0) 
+                ? (this.checkpoints[this.checkpoints.length - 1].respawn_coordinate_x + 600) 
+                : 4000);
+        const totalDist = Math.max(1, effectiveFinishLineX - 100);
 
         // Render Checkpoint Flags at relative positions along the track
         if (this.checkpoints && this.checkpoints.length > 0) {
             const chkFlagImg = (this.images && this.images.checkpointflag) || (this.itemImages && this.itemImages.checkpointflag);
             for (let chk of this.checkpoints) {
                 const chkX = chk.respawn_coordinate_x || 0;
-                if (chkX <= 100 || chkX >= this.finishLineX) continue;
+                if (chkX <= 100 || chkX >= effectiveFinishLineX) continue;
 
                 const ratio = Math.max(0, Math.min(1, (chkX - 100) / totalDist));
                 const flagX = trackX + (ratio * (trackWidth - 20));
