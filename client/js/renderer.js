@@ -94,17 +94,6 @@ class CanvasRenderer {
             }
         }
 
-        // Fallback for City theme if omitted in config
-        if (!this.themeImages["city"]) {
-            const cityBg = new Image();
-            cityBg.src = "assets/images/backgrounds/bg_city.png";
-            const topImg = new Image();
-            topImg.src = "assets/images/toppipe.png";
-            const botImg = new Image();
-            botImg.src = "assets/images/bottompipe.png";
-            this.themeImages["city"] = { bg: cityBg, topPipe: topImg, bottomPipe: botImg };
-        }
-
         // Fallback for new_underwater_map theme
         if (!this.themeImages["new_underwater_map"]) {
             const uwBg = new Image();
@@ -164,10 +153,10 @@ class CanvasRenderer {
     }
 
     render(now) {
-        const frameInterval = 1000 / this.targetFps;
+        const frameInterval = 1000 / 60; // Strictly synced to 60 FPS (16.6ms) physics tick
         const delta = now - this.lastFrameTime;
 
-        if (this.fpsLocked && delta < frameInterval - 1) {
+        if (delta < frameInterval - 1) {
             return;
         }
 
@@ -247,8 +236,6 @@ class CanvasRenderer {
         }
 
         const bgWidth = 288;
-        const bgHeight = 512;
-        const bgY = this.height - bgHeight;
 
         // Parallax X offset: moves 0.15x camera speed (much slower than pipes for 2D depth illusion)
         const parallaxX = -(this.cameraX * 0.15) % bgWidth;
@@ -263,7 +250,7 @@ class CanvasRenderer {
 
             for (let x = parallaxX - bgWidth; x < this.width + bgWidth; x += bgWidth) {
                 if (bgImg && bgImg.complete) {
-                    this.ctx.drawImage(bgImg, x, bgY, bgWidth, bgHeight);
+                    this.ctx.drawImage(bgImg, x, 0, bgWidth, this.height);
                 } else {
                     this.ctx.fillStyle = "#70c5ce";
                     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -738,7 +725,7 @@ class CanvasRenderer {
         const hatImg = this.hatImages[hatKey];
 
         if (hatImg && hatImg.complete) {
-            this.ctx.drawImage(hatImg, -16, -26, 32, 32);
+            this.ctx.drawImage(hatImg, -16, -36, 32, 32);
         } else {
             this.drawProceduralHatFallback(hatId);
         }

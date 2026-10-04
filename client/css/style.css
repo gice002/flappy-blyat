@@ -432,18 +432,31 @@ select {
     display: flex;
 }
 
+.btn-ready-large {
+    width: 100%;
+    font-size: 14px;
+    padding: 14px 20px;
+    margin-top: 12px;
+    letter-spacing: 1px;
+    box-shadow: 0 5px 0 #2b6313;
+}
+
 /* Canvas Container */
 #game-canvas-container {
     position: relative;
-    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    box-shadow: 0 0 35px rgba(0,0,0,0.9);
     border: 6px solid #000;
     border-radius: 12px;
     overflow: hidden;
     background: #70c5ce;
+    max-width: 960px;
+    width: 92vw;
 }
 
 canvas {
     display: block;
+    width: 100%;
+    height: auto;
 }
 
 .leaderboard-table {

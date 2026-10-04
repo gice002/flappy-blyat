@@ -86,33 +86,32 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
             // 2. Item Spawning: Items MUST ONLY spawn in "flappy_race" mode
             if (modeId !== "flappy_chained" && (i === 3 || i === 5 || i === 8)) {
                 const itemX = currentX + Math.floor(pipeSpacingX / 2);
+                const centerGapY = topY + pipeHeight + Math.floor(gapSize / 2);
 
-                // Risk/Reward Placement: Offset Y position to top/bottom pipe edges away from safe center
-                const isTopRisk = Math.random() < 0.5;
-                const itemY = isTopRisk 
-                    ? (topY + pipeHeight + 20)      // Near top pipe rim (risk)
-                    : (bottomY - 32 - 20);           // Near bottom pipe rim (risk)
+                for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
+                    const boxY = centerGapY - 100 + (boxIdx * 40);
 
-                itemXList.push(itemX);
-                itemYList.push(itemY);
+                    itemXList.push(itemX);
+                    itemYList.push(boxY);
 
-                itemBoxes.push({
-                    id: `item_${lobbyId}_${pipeIndexCounter}`,
-                    x: itemX,
-                    y: itemY,
-                    width: 32,
-                    height: 32,
-                    collected: false,
-                    isActive: true,
-                    collectedBy: null
-                });
+                    itemBoxes.push({
+                        id: `item_${lobbyId}_${pipeIndexCounter}_${boxIdx}`,
+                        x: itemX,
+                        y: boxY,
+                        width: 32,
+                        height: 32,
+                        collected: false,
+                        isActive: true,
+                        collectedBy: null
+                    });
+                }
             }
 
             currentX += pipeSpacingX;
         }
 
         const checkpointId = `chk_${lobbyId}_${m}`;
-        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 40;
+        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 300;
         const respawnY = 320;
 
         const checkpointObj = new Checkpoint(

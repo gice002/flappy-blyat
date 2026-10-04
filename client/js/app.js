@@ -81,7 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Settings Inputs
     const sliderBgm = document.getElementById("slider-bgm");
     const sliderSfx = document.getElementById("slider-sfx");
-    const checkFpsLock = document.getElementById("check-fps-lock");
 
     // Chat Elements
     const lobbyChatMessages = document.getElementById("lobby-chat-messages");
@@ -296,10 +295,6 @@ document.addEventListener("DOMContentLoaded", () => {
         audioManager.setSFXVolume(e.target.value / 100);
     });
 
-    checkFpsLock.addEventListener("change", (e) => {
-        renderer.setFpsLock(e.target.checked);
-    });
-
     // Host Settings Listeners
     selectMode.addEventListener("change", (e) => {
         socket.emit("update_lobby_settings", { mode_id: e.target.value });
@@ -452,7 +447,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isHost) {
             hostControlsEl.style.display = "block";
             btnStartMatch.style.display = "inline-block";
-            btnToggleReady.style.display = "none";
             selectMode.value = currentLobby.mode_id;
             selectMaps.value = currentLobby.amount_of_map;
 
@@ -462,12 +456,19 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             hostControlsEl.style.display = "none";
             btnStartMatch.style.display = "none";
-            btnToggleReady.style.display = "inline-block";
+        }
 
-            const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
-            if (myPlayer) {
-                btnToggleReady.textContent = myPlayer.ready_status ? "UNREADY" : "TOGGLE READY";
-                btnToggleReady.style.background = myPlayer.ready_status ? "#d9534f" : "#55b02e";
+        const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
+        if (myPlayer) {
+            btnToggleReady.style.display = "block";
+            if (myPlayer.ready_status) {
+                btnToggleReady.textContent = "UNREADY";
+                btnToggleReady.style.background = "#d9534f"; // Red style
+                btnToggleReady.style.boxShadow = "0 5px 0 #962d2a";
+            } else {
+                btnToggleReady.textContent = "READY";
+                btnToggleReady.style.background = "#55b02e"; // Green style
+                btnToggleReady.style.boxShadow = "0 5px 0 #2b6313";
             }
         }
     }
@@ -475,13 +476,16 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateResultsHostState() {
         if (!currentLobby) return;
         const isHost = (localPlayerId === currentLobby.host_ID);
+        
         if (isHost) {
-            hostResultsControls.style.display = "flex";
+            btnPlayAgain.style.display = "block";
             waitingHostText.style.display = "none";
         } else {
-            hostResultsControls.style.display = "none";
+            btnPlayAgain.style.display = "none";
             waitingHostText.style.display = "block";
         }
+        // RETURN TO LOBBY button is ALWAYS visible for ALL players!
+        btnReturnToLobby.style.display = "block";
     }
 
     const loadingStatusText = document.getElementById("loading-status-text");

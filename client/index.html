@@ -92,11 +92,13 @@
                 </ul>
 
                 <!-- Ready & Start Buttons -->
-                <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
                     <button class="btn btn-secondary btn-small" id="btn-open-settings">SETTINGS</button>
-                    <button class="btn btn-primary" id="btn-toggle-ready">TOGGLE READY</button>
-                    <button class="btn btn-primary" id="btn-start-match" style="display: none;">START MATCH</button>
+                    <button class="btn btn-primary" id="btn-start-match" style="display: none; flex: 1; margin-left: 10px;">START MATCH</button>
                 </div>
+
+                <!-- Prominent Large Ready / Unready Button -->
+                <button class="btn btn-primary btn-ready-large" id="btn-toggle-ready">READY</button>
 
                 <!-- Chat Box in Lobby -->
                 <div class="chat-container">
@@ -128,7 +130,7 @@
         <!-- SCREEN 3: GAME CANVAS & HUD -->
         <div id="screen-game" class="screen">
             <div id="game-canvas-container">
-                <canvas id="gameCanvas" width="800" height="640"></canvas>
+                <canvas id="gameCanvas" width="960" height="640"></canvas>
 
                 <!-- HUD Overlay -->
                 <div id="hud">
@@ -182,12 +184,12 @@
                 </table>
 
                 <!-- Post-Match Action Controls -->
-                <div id="host-results-controls" style="display: flex; justify-content: space-around; margin-top: 10px;">
-                    <button class="btn btn-primary" id="btn-play-again" style="flex: 1;">PLAY AGAIN</button>
-                    <button class="btn btn-secondary" id="btn-return-lobby" style="flex: 1;">LOBBY</button>
+                <div id="results-action-controls" style="display: flex; gap: 10px; justify-content: space-around; margin-top: 10px;">
+                    <button class="btn btn-primary" id="btn-play-again" style="flex: 1; display: none;">PLAY AGAIN</button>
+                    <button class="btn btn-secondary" id="btn-return-lobby" style="flex: 1;">RETURN TO LOBBY</button>
                 </div>
-                <div id="waiting-host-text" style="display: none; margin-top: 10px; font-size: 10px; color: #f7d51d;">
-                    WAITING FOR HOST...
+                <div id="waiting-host-text" style="display: none; margin-top: 8px; font-size: 10px; color: #f7d51d;">
+                    WAITING FOR HOST TO START...
                 </div>
 
                 <!-- Chat Box in Results -->
@@ -243,11 +245,6 @@
                 <div class="setting-row" style="margin-top: 12px;">
                     <span>SFX VOLUME:</span>
                     <input type="range" id="slider-sfx" min="0" max="100" value="70">
-                </div>
-
-                <div class="setting-row" style="margin-top: 16px;">
-                    <span>60 FPS LOCK:</span>
-                    <input type="checkbox" id="check-fps-lock">
                 </div>
 
                 <div style="margin-top: 20px;">

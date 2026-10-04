@@ -21,6 +21,7 @@ class PhysicsEngine {
         // Interpolated remote players state map: playerId -> playerObj
         this.remotePlayers = new Map();
         this.isFrozen = false;
+        this.localIsFinished = false;
         this.localSpeedMultiplier = 1.0;
         this.localHasShield = false;
         this.localIsInvincible = false;
@@ -44,6 +45,7 @@ class PhysicsEngine {
         this.inputSequence = 0;
         this.pendingInputs = [];
         this.isFrozen = false;
+        this.localIsFinished = false;
         this.localSpeedMultiplier = 1.0;
         this.localHasShield = false;
         this.localIsInvincible = false;
@@ -53,7 +55,7 @@ class PhysicsEngine {
 
     // Process local jump input instantly for zero latency
     handleLocalJump() {
-        if (this.isFrozen) return null;
+        if (this.isFrozen || this.localIsFinished) return null;
         this.inputSequence++;
         const input = {
             sequence: this.inputSequence,
@@ -72,7 +74,10 @@ class PhysicsEngine {
 
     // Step local physics frame (at 60 FPS)
     updateLocalPhysics() {
-        if (this.isFrozen) return;
+        if (this.isFrozen || this.localIsFinished) {
+            this.predictedState.velocityY = 0;
+            return;
+        }
         const speedMult = (this.localSpeedMultiplier !== undefined && this.localSpeedMultiplier !== null) ? this.localSpeedMultiplier : 1.0;
         this.predictedState.x += this.forwardVelocity * speedMult;
         this.predictedState.velocityY += this.gravity;
@@ -104,6 +109,15 @@ class PhysicsEngine {
                 this.localIsInvincible = serverPlayer.isInvincible || false;
                 this.localHeldItem = serverPlayer.heldItem || null;
                 this.localSpeedMultiplier = (serverPlayer.speedMultiplier !== undefined && serverPlayer.speedMultiplier !== null) ? serverPlayer.speedMultiplier : 1.0;
+                this.localIsFinished = serverPlayer.is_finished || false;
+
+                if (this.localIsFinished) {
+                    this.predictedState.x = serverPlayer.x;
+                    this.predictedState.y = serverPlayer.y;
+                    this.predictedState.velocityY = 0;
+                    this.pendingInputs = [];
+                    continue;
+                }
 
                 // Server baseline position
                 let reconciledX = serverPlayer.x;
@@ -186,9 +200,15 @@ class PhysicsEngine {
     // Interpolate remote players towards target positions
     updateRemotePlayers() {
         for (let remote of this.remotePlayers.values()) {
-            remote.x += (remote.targetX - remote.x) * 0.25;
-            remote.y += (remote.targetY - remote.y) * 0.25;
-            remote.velocityY = remote.targetVelocityY;
+            if (remote.is_finished) {
+                remote.x = remote.targetX;
+                remote.y = remote.targetY;
+                remote.velocityY = 0;
+            } else {
+                remote.x += (remote.targetX - remote.x) * 0.25;
+                remote.y += (remote.targetY - remote.y) * 0.25;
+                remote.velocityY = remote.targetVelocityY;
+            }
         }
     }
 }

@@ -62,13 +62,6 @@
       "bg_src": "assets/images/backgrounds/bg_desert.png",
       "pipe_top_src": "assets/images/pipes/toppipe_desert.png",
       "pipe_bottom_src": "assets/images/pipes/bottompipe_desert.png"
-    },
-    {
-      "theme_id": "city",
-      "name": "Metropolis City",
-      "bg_src": "assets/images/backgrounds/bg_city.png",
-      "pipe_top_src": "assets/images/toppipe.png",
-      "pipe_bottom_src": "assets/images/bottompipe.png"
     }
   ],
   "items": {

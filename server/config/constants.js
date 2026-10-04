@@ -22,7 +22,6 @@ const MAX_GAP = 240;
 // Theme Pools
 const DEFAULT_THEME = "classic_day";
 const SUBSEQUENT_THEMES = [
-    "city",
     "new_underwater_map",
     "volcano",
     "snowy",
