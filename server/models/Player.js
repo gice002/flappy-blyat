@@ -18,6 +18,7 @@ class Player {
         this.is_alive = true;
         this.crashed_at_pipe = null;
         this.chain_index = 0;
+        this.wipes_caused = 0; // Mode B Chained mode wipe tracker
     }
 
     resetForMatch(startX, startY, initialCheckpointId) {
@@ -31,6 +32,7 @@ class Player {
         this.last_pipe_passed = 0;
         this.is_alive = true;
         this.crashed_at_pipe = null;
+        this.wipes_caused = 0;
     }
 }
 

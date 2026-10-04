@@ -91,6 +91,9 @@ class GameEngine {
             // Collision check
             const collided = this.checkCollisions(player);
             if (collided) {
+                // Track culprit player who caused wipeout
+                player.wipes_caused = (player.wipes_caused || 0) + 1;
+
                 if (this.lobby.mode_id === "flappy_chained") {
                     anyCollisionInChained = true;
                     // Find highest checkpoint cleared by any player in chain
@@ -299,6 +302,12 @@ class GameEngine {
         this.stop();
         this.lobby.status = "finished";
 
+        const elapsedMs = Date.now() - this.lobby.matchStartTime;
+        const minutes = Math.floor(elapsedMs / 60000);
+        const seconds = Math.floor((elapsedMs % 60000) / 1000);
+        const millis = Math.floor((elapsedMs % 1000) / 10);
+        const teamTotalTimeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(2, '0')}`;
+
         const playerList = Array.from(this.lobby.players.values());
         
         const finishedPlayers = playerList.filter(p => p.is_finished);
@@ -318,7 +327,10 @@ class GameEngine {
                 p.finish_time,
                 rank++,
                 p.name,
-                "FINISHED"
+                "FINISHED",
+                p.wipes_caused || 0,
+                p.skin_ID || 0,
+                p.hat_ID || 0
             );
             leaderboardEntries.push(lbEntry);
         }
@@ -333,7 +345,10 @@ class GameEngine {
                 null,
                 null,
                 p.name,
-                statusStr
+                statusStr,
+                p.wipes_caused || 0,
+                p.skin_ID || 0,
+                p.hat_ID || 0
             );
             leaderboardEntries.push(lbEntry);
         }
@@ -342,6 +357,8 @@ class GameEngine {
 
         this.io.to(this.lobby.Lobby_id).emit("match_finished", {
             lobby_id: this.lobby.Lobby_id,
+            mode_id: this.lobby.mode_id,
+            team_total_time: teamTotalTimeStr,
             leaderboard: leaderboardEntries
         });
     }

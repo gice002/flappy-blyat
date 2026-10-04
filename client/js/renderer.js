@@ -13,6 +13,12 @@ class CanvasRenderer {
         this.hatImages = {};   // hat_id -> Image
         this.images = {};
 
+        // Parallax & Transition State
+        this.currentThemeId = "classic_day";
+        this.targetThemeId = "classic_day";
+        this.fadeAlpha = 1.0;
+        this.isFading = false;
+
         this.loadAssetsConfig();
 
         this.maps = [];
@@ -35,7 +41,6 @@ class CanvasRenderer {
     }
 
     async loadAssetsConfig() {
-        // Base bird animation frames
         const sources = {
             bird0: "assets/flappybird0.png",
             bird1: "assets/flappybird1.png",
@@ -63,7 +68,6 @@ class CanvasRenderer {
     preloadConfiguredAssets() {
         if (!this.assetsConfig) return;
 
-        // Preload Map Themes
         if (this.assetsConfig.map_themes) {
             for (let theme of this.assetsConfig.map_themes) {
                 const bgImg = new Image();
@@ -83,14 +87,12 @@ class CanvasRenderer {
             }
         }
 
-        // Preload Hats
         if (this.assetsConfig.hats) {
             for (let hat of this.assetsConfig.hats) {
                 if (hat.src) {
                     const hatImg = new Image();
                     hatImg.src = hat.src;
                     this.hatImages[hat.id] = hatImg;
-                    // Also index by numerical skin/hat ID index if applicable
                 }
             }
         }
@@ -102,6 +104,13 @@ class CanvasRenderer {
         this.itemBoxes = itemBoxes || [];
         this.finishLineX = finishLineX || 0;
         this.modeId = modeId || "flappy_race";
+
+        if (this.maps.length > 0 && this.maps[0].theme_id) {
+            this.currentThemeId = this.maps[0].theme_id;
+            this.targetThemeId = this.maps[0].theme_id;
+            this.fadeAlpha = 1.0;
+            this.isFading = false;
+        }
     }
 
     setFpsLock(locked) {
@@ -119,36 +128,36 @@ class CanvasRenderer {
         this.lastFrameTime = now;
         this.frameCount++;
 
-        // Clear canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
 
-        // Update Camera position to follow local player
         const localBird = this.physics.predictedState;
         this.cameraX = localBird.x - 150;
 
-        // 1. Render Seamless Dynamic Background
+        // 1. Render Dynamic Parallax Background with Cross-Fade Transitions
         this.renderBackground();
 
         // 2. Render Checkpoints & Finish Line
         this.renderCheckpointsAndFinish();
 
-        // 3. Render Pipes (Themed dynamically per map)
+        // 3. Render Pipes
         this.renderPipes();
 
         // 4. Render Item Boxes
         this.renderItemBoxes();
 
-        // 5. Render Birds & Chain (if Flappy Chained mode)
+        // 5. Render Birds & Chain
         this.renderChains();
         this.renderBirds();
 
         // 6. Render Ground Strip
         this.renderGround();
+
+        // 7. Render Top-Left Racing Progress Bar UI
+        this.renderRacingProgressBar();
     }
 
     getCurrentMapTheme() {
         const localX = this.physics.predictedState.x;
-        // Determine current map theme based on local player position
         for (let mapData of this.maps) {
             if (mapData.pipes && mapData.pipes.length > 0) {
                 const firstPipeX = mapData.pipes[0].x - 300;
@@ -162,24 +171,57 @@ class CanvasRenderer {
     }
 
     renderBackground() {
+        const activeThemeId = this.getCurrentMapTheme();
+
+        // Check theme transition
+        if (activeThemeId !== this.targetThemeId) {
+            this.targetThemeId = activeThemeId;
+            this.fadeAlpha = 0.0;
+            this.isFading = true;
+        }
+
         const bgWidth = 288;
         const bgHeight = 512;
         const bgY = this.height - bgHeight;
 
-        const currentThemeId = this.getCurrentMapTheme();
-        const themeAsset = this.themeImages[currentThemeId];
-        const bgImg = (themeAsset && themeAsset.bg.complete) ? themeAsset.bg : this.images.bg;
+        // Parallax X offset: moves 0.15x camera speed (much slower than pipes for 2D depth illusion)
+        const parallaxX = -(this.cameraX * 0.15) % bgWidth;
 
-        // Parallax scroll
-        const parallaxX = -(this.cameraX * 0.4) % bgWidth;
+        // Draw helper for a given theme_id
+        const drawThemeBg = (themeId, alpha) => {
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
 
-        for (let x = parallaxX - bgWidth; x < this.width + bgWidth; x += bgWidth) {
-            if (bgImg && bgImg.complete) {
-                this.ctx.drawImage(bgImg, x, bgY, bgWidth, bgHeight);
-            } else {
-                this.ctx.fillStyle = "#70c5ce";
-                this.ctx.fillRect(0, 0, this.width, this.height);
+            const themeAsset = this.themeImages[themeId];
+            const bgImg = (themeAsset && themeAsset.bg.complete) ? themeAsset.bg : this.images.bg;
+
+            for (let x = parallaxX - bgWidth; x < this.width + bgWidth; x += bgWidth) {
+                if (bgImg && bgImg.complete) {
+                    this.ctx.drawImage(bgImg, x, bgY, bgWidth, bgHeight);
+                } else {
+                    this.ctx.fillStyle = "#70c5ce";
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+                }
             }
+            this.ctx.restore();
+        };
+
+        if (this.isFading) {
+            // Draw old background
+            drawThemeBg(this.currentThemeId, 1.0);
+
+            // Advance cross-fade alpha blend
+            this.fadeAlpha += 0.025;
+            if (this.fadeAlpha >= 1.0) {
+                this.fadeAlpha = 1.0;
+                this.currentThemeId = this.targetThemeId;
+                this.isFading = false;
+            }
+
+            // Draw new background over old background with alpha
+            drawThemeBg(this.targetThemeId, this.fadeAlpha);
+        } else {
+            drawThemeBg(this.currentThemeId, 1.0);
         }
     }
 
@@ -209,7 +251,6 @@ class CanvasRenderer {
 
                 if (screenX + pipe.width < -50 || screenX > this.width + 50) continue;
 
-                // Top Pipe
                 if (topImg && topImg.complete) {
                     this.ctx.drawImage(topImg, screenX, pipe.topY, pipe.width, pipe.height);
                 } else {
@@ -217,7 +258,6 @@ class CanvasRenderer {
                     this.ctx.fillRect(screenX, pipe.topY, pipe.width, pipe.height);
                 }
 
-                // Bottom Pipe
                 if (botImg && botImg.complete) {
                     this.ctx.drawImage(botImg, screenX, pipe.bottomY, pipe.width, pipe.height);
                 } else {
@@ -403,7 +443,6 @@ class CanvasRenderer {
             this.ctx.fillRect(-17, -12, 34, 24);
         }
 
-        // Draw Transparent Hat PNG on top of bird
         this.drawHat(hatId);
 
         this.ctx.restore();
@@ -426,6 +465,86 @@ class CanvasRenderer {
             this.ctx.closePath();
             this.ctx.fill();
         }
+        this.ctx.restore();
+    }
+
+    // TOP-LEFT RACING PROGRESS BAR UI (Mario Kart Track Tracker style)
+    renderRacingProgressBar() {
+        this.ctx.save();
+
+        const trackX = 16;
+        const trackY = 24;
+        const trackWidth = 260;
+        const trackHeight = 14;
+
+        // Background Track Box
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.lineWidth = 3;
+        this.ctx.fillRect(trackX, trackY, trackWidth, trackHeight);
+        this.ctx.strokeRect(trackX, trackY, trackWidth, trackHeight);
+
+        // Inner Track Bar
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        this.ctx.fillRect(trackX + 2, trackY + 2, trackWidth - 4, trackHeight - 4);
+
+        // Collect all active players
+        const playersList = [];
+        const local = this.physics.predictedState;
+        playersList.push({
+            id: this.physics.localPlayerId,
+            x: local.x,
+            skin_ID: window.playerSkinId || 0,
+            isLocal: true
+        });
+
+        for (let remote of this.physics.remotePlayers.values()) {
+            playersList.push({
+                id: remote.player_id,
+                x: remote.x,
+                skin_ID: remote.skin_ID || 0,
+                isLocal: false
+            });
+        }
+
+        // Sort by progression X descending to calculate rank indicators (1st, 2nd, 3rd, 4th)
+        playersList.sort((a, b) => b.x - a.x);
+        const rankLabels = ["1st", "2nd", "3rd", "4th"];
+
+        const totalDist = Math.max(1, this.finishLineX - 100);
+
+        for (let i = 0; i < playersList.length; i++) {
+            const p = playersList[i];
+            const ratio = Math.max(0, Math.min(1, (p.x - 100) / totalDist));
+            const iconX = trackX + (ratio * (trackWidth - 20));
+            const iconY = trackY - 2;
+
+            // Mini Bird Icon (16x12 px)
+            this.ctx.fillStyle = this.getSkinColorHex(p.skin_ID);
+            this.ctx.strokeStyle = "#000000";
+            this.ctx.lineWidth = 2;
+            this.ctx.fillRect(iconX, iconY, 16, 12);
+            this.ctx.strokeRect(iconX, iconY, 16, 12);
+
+            // Mini Eye dot
+            this.ctx.fillStyle = "#ffffff";
+            this.ctx.fillRect(iconX + 10, iconY + 2, 4, 4);
+
+            // Rank Indicator Badge (1st, 2nd, 3rd, 4th) - NO NAMES ON BAR
+            const rankStr = rankLabels[i] || `${i + 1}th`;
+            this.ctx.fillStyle = p.isLocal ? "#f7d51d" : "#ffffff";
+            this.ctx.strokeStyle = "#000000";
+            this.ctx.lineWidth = 2;
+            this.ctx.font = "6px 'Press Start 2P'";
+            this.ctx.textAlign = "center";
+            this.ctx.strokeText(rankStr, iconX + 8, iconY - 4);
+            this.ctx.fillText(rankStr, iconX + 8, iconY - 4);
+        }
+
+        // Finish Line Flag Icon at end of track
+        this.ctx.fillStyle = "#f7d51d";
+        this.ctx.fillRect(trackX + trackWidth - 6, trackY - 4, 6, 22);
+
         this.ctx.restore();
     }
 
@@ -460,16 +579,13 @@ class CanvasRenderer {
         this.ctx.save();
         this.ctx.filter = "none";
 
-        // Map numerical ID or string ID to hat asset
         const hatKeys = ["none", "crown", "top_hat", "cap", "viking"];
         const hatKey = (typeof hatId === "number") ? hatKeys[hatId] : hatId;
         const hatImg = this.hatImages[hatKey];
 
         if (hatImg && hatImg.complete) {
-            // Draw transparent PNG hat centered on top of bird head (-16, -24)
             this.ctx.drawImage(hatImg, -16, -26, 32, 32);
         } else {
-            // Procedural fallback if image loading
             this.drawProceduralHatFallback(hatId);
         }
 
@@ -479,7 +595,7 @@ class CanvasRenderer {
     drawProceduralHatFallback(hatId) {
         const idNum = Number(hatId);
         switch (idNum) {
-            case 1: // Golden Crown
+            case 1:
                 this.ctx.fillStyle = "#f7d51d";
                 this.ctx.strokeStyle = "#000000";
                 this.ctx.lineWidth = 1;
@@ -496,7 +612,7 @@ class CanvasRenderer {
                 this.ctx.stroke();
                 break;
 
-            case 2: // Top Hat
+            case 2:
                 this.ctx.fillStyle = "#111111";
                 this.ctx.fillRect(-14, -14, 28, 4);
                 this.ctx.fillRect(-8, -26, 16, 12);
@@ -504,7 +620,7 @@ class CanvasRenderer {
                 this.ctx.fillRect(-8, -16, 16, 3);
                 break;
 
-            case 3: // Red Cap
+            case 3:
                 this.ctx.fillStyle = "#d9534f";
                 this.ctx.fillRect(-6, -14, 20, 3);
                 this.ctx.beginPath();
@@ -512,7 +628,7 @@ class CanvasRenderer {
                 this.ctx.fill();
                 break;
 
-            case 4: // Viking Helmet
+            case 4:
                 this.ctx.fillStyle = "#7f8c8d";
                 this.ctx.fillRect(-10, -16, 20, 6);
                 this.ctx.fillStyle = "#f39c12";

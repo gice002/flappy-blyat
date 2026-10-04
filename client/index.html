@@ -113,7 +113,7 @@
 
                 <!-- HUD Overlay -->
                 <div id="hud">
-                    <div class="hud-panel" id="hud-map-progress">
+                    <div class="hud-panel" id="hud-map-progress" style="display: none;">
                         <span id="hud-pipe-count">Pipes Cleared: 0 / 10</span>
                     </div>
                     <div class="hud-panel">
@@ -134,11 +134,12 @@
 
         <!-- SCREEN 4: LEADERBOARD & RESULTS (BR 6, 7, 13, 14) -->
         <div id="screen-results" class="screen">
-            <div class="card" style="width: 520px;">
-                <h1 class="game-title">MATCH RESULTS</h1>
+            <div class="card" style="width: 540px;">
+                <h1 class="game-title" id="results-main-header">MATCH RESULTS</h1>
+                <h2 id="results-sub-header" style="color: #f7d51d; font-size: 13px; margin-bottom: 12px; display: none;"></h2>
 
-                <table class="leaderboard-table">
-                    <thead>
+                <table class="leaderboard-table" id="leaderboard-table-el">
+                    <thead id="leaderboard-head">
                         <tr>
                             <th>RANK</th>
                             <th>PLAYER</th>

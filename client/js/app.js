@@ -62,6 +62,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const startCountdownEl = document.getElementById("start-countdown");
 
     // Results Screen Elements
+    const resultsMainHeader = document.getElementById("results-main-header");
+    const resultsSubHeader = document.getElementById("results-sub-header");
+    const leaderboardHead = document.getElementById("leaderboard-head");
     const leaderboardBody = document.getElementById("leaderboard-body");
     const hostResultsControls = document.getElementById("host-results-controls");
     const btnPlayAgain = document.getElementById("btn-play-again");
@@ -455,7 +458,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const startX = startChk ? startChk.respawn_coordinate_x : 100;
         const startY = startChk ? startChk.respawn_coordinate_y : 320;
 
-        // Calculate Chained Mode spawn offset for local player prediction
         let myChainIdx = 0;
         if (currentLobby && currentLobby.players) {
             const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
@@ -465,7 +467,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const chainedOffset = (currentLobby.mode_id === "flappy_chained") ? (myChainIdx * 60) : 0;
         
-        // Strict state wipe for physics prediction & remote tracking on match start
         physics.resetLocalState(startX - chainedOffset, startY);
 
         let count = data.countdownSeconds || 3;
@@ -515,8 +516,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Server Snapshot Handler
     socket.on("game_snapshot", (snapshot) => {
         physics.reconcileServerSnapshot(snapshot);
-
-        hudPipeCount.textContent = `Pipes Cleared: ${snapshot.players.find(p => p.player_id === localPlayerId)?.last_pipe_passed || 0} / ${renderer.finishLineX ? Math.floor(renderer.finishLineX / 250) : 10}`;
 
         if (snapshot.finishCountdown !== null && snapshot.finishCountdown >= 0) {
             finishTimerBanner.style.display = "block";
@@ -577,21 +576,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
         updateResultsHostState();
 
-        leaderboardBody.innerHTML = "";
-        for (let entry of data.leaderboard) {
-            const tr = document.createElement("tr");
+        const isChainedMode = (data.mode_id === "flappy_chained");
 
-            const rankDisplay = entry.ranking ? `#${entry.ranking}` : "-";
-            const statusDisplay = entry.finish_time 
-                ? `<span class="status-finished">${entry.finish_time}</span>`
-                : `<span class="status-out">${entry.status_text}</span>`;
+        if (isChainedMode) {
+            resultsMainHeader.textContent = "FLAPPY CHAINED RESULTS";
+            resultsSubHeader.style.display = "block";
+            resultsSubHeader.textContent = `TEAM TOTAL TIME: ${data.team_total_time || "00:00.00"}`;
 
-            tr.innerHTML = `
-                <td>${rankDisplay}</td>
-                <td><strong>${entry.name}</strong></td>
-                <td>${statusDisplay}</td>
+            leaderboardHead.innerHTML = `
+                <tr>
+                    <th>PLAYER</th>
+                    <th>WIPES CAUSED</th>
+                    <th>STATUS</th>
+                </tr>
             `;
-            leaderboardBody.appendChild(tr);
+
+            leaderboardBody.innerHTML = "";
+            for (let entry of data.leaderboard) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><strong>${escapeHtml(entry.name)}</strong></td>
+                    <td><span style="color: #d9534f; font-weight: bold;">Wipes Caused: ${entry.wipes_caused || 0}</span></td>
+                    <td><span class="status-finished">COMPLETED</span></td>
+                `;
+                leaderboardBody.appendChild(tr);
+            }
+        } else {
+            // Standard Flappy Race Mode
+            resultsMainHeader.textContent = "MATCH RESULTS";
+            resultsSubHeader.style.display = "none";
+
+            leaderboardHead.innerHTML = `
+                <tr>
+                    <th>RANK</th>
+                    <th>PLAYER</th>
+                    <th>TIME / STATUS</th>
+                </tr>
+            `;
+
+            leaderboardBody.innerHTML = "";
+            for (let entry of data.leaderboard) {
+                const tr = document.createElement("tr");
+
+                const rankDisplay = entry.ranking ? `#${entry.ranking}` : "-";
+                const statusDisplay = entry.finish_time 
+                    ? `<span class="status-finished">${entry.finish_time}</span>`
+                    : `<span class="status-out">${entry.status_text}</span>`;
+
+                tr.innerHTML = `
+                    <td>${rankDisplay}</td>
+                    <td><strong>${escapeHtml(entry.name)}</strong></td>
+                    <td>${statusDisplay}</td>
+                `;
+                leaderboardBody.appendChild(tr);
+            }
         }
     });
 

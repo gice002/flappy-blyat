@@ -251,3 +251,39 @@ Please perform the following tasks:
     Y-Axis Gap Randomization: Currently, the Y-position of the gap is randomized, but I want you to also randomize the vertical gap size (the vertical space between the top pipe and bottom pipe). Implement a logic that assigns a random gap size for each pipe within a safe min/max range (e.g., min_gap = 150, max_gap = 250) so it never generates an impossible pipe.
 
 Please provide the updated gameManager.js (or map generator module) logic for the pipe spacing, and confirm the paths/config structure for the newly extracted assets.
+
+================================================================================
+PROMPT 10
+================================================================================
+Act as a Senior Full-Stack Game Developer. I have three specific UI/UX and rendering improvements to implement for the Flappy Bird Multiplayer project. Please update the necessary files (client.js, ui.js, gameManager.js or rendering modules) with the following exact requirements:
+
+1. Dynamic Parallax Background & Fade Transitions
+
+    Canvas Background Cover: Dynamically calculate background image rendering so it scales to cover the canvas without distorting its aspect ratio.
+
+    Parallax Depth Effect: Implement a subtle horizontal parallax effect. As the local player's camera moves forward on the X-axis, scroll the background image at a slower rate (e.g., 0.15x of camera speed) to create a true 2D depth effect.
+
+    Smooth Theme Cross-Fade: When transitioning across map boundaries (between different map themes), perform a smooth cross-fade transition (alpha blending over ~0.5–1 second) between the old background/pipe texture set and the new map theme.
+
+2. Top-Left Racing Progress Bar UI
+
+    Replace the simple text distance counter with a modern, visual horizontal progress bar in the top-left corner of the gameplay HUD.
+
+    Track Representation: The bar represents the total map distance (0% at Start, 100% at Finish Line).
+
+    Mini-Bird Icons: Render small icon markers representing each active player along the progress bar according to their normalized position on the map. Use the player's custom color/hat or small bird sprite.
+
+    Real-Time Rank Badges: Display rank badges ("1st", "2nd", "3rd", "4th") directly next to or above each player's mini-bird icon on the bar, dynamically updating as players pass one another. Do NOT display player names on the bar to keep the UI clean.
+
+3. Custom Leaderboard for "Flappy Chained" Mode
+
+    When a match ends in "Mode B: Flappy Chained", display a tailored post-match screen that reflects team performance:
+
+    Wipes Track: Record how many times a wipe was caused by each specific player (the player who collided with an obstacle first before triggering the team wipe).
+
+    Team Total Time Header: Display a prominent header showing the "TEAM TOTAL TIME: [MM:SS.ms]" (the total time elapsed until all maps/checkpoints were cleared).
+
+    Custom Results Table: In the post-match Leaderboard table, instead of individual placement rankings, display columns for Player Name, Bird Skin/Hat, and Wipes Caused (e.g., "0 Wipes", "3 Wipes").
+
+Please provide the updated client-side rendering (renderer.js / client.js / ui.js) and server-side tracking (gameManager.js / Player models) logic to implement these features.
+
