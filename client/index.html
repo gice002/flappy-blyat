@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Online - Realtime Multiplayer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="app-container">
+
+        <!-- SCREEN 1: MAIN MENU & LOBBY REGISTRATION (UC-1, 2, 3) -->
+        <div id="screen-main-menu" class="screen active">
+            <div class="card">
+                <h1 class="game-title">FLAPPY BIRD<br>ONLINE</h1>
+                
+                <div class="input-group">
+                    <label for="input-player-name">PLAYER NAME</label>
+                    <input type="text" id="input-player-name" placeholder="Enter your name..." maxlength="12" value="FlappyHero">
+                </div>
+
+                <!-- Customization (UC-4, 5) -->
+                <div class="customization-section">
+                    <label>CUSTOMIZE BIRD</label>
+                    <div class="preview-box">
+                        <div id="preview-bird" class="preview-bird"></div>
+                    </div>
+
+                    <div class="option-selector">
+                        <button class="btn btn-small" id="btn-prev-skin">&lt;</button>
+                        <span id="skin-name-label" style="font-size: 8px;">Classic Yellow</span>
+                        <button class="btn btn-small" id="btn-next-skin">&gt;</button>
+                    </div>
+
+                    <div class="option-selector">
+                        <button class="btn btn-small" id="btn-prev-hat">&lt;</button>
+                        <span id="hat-name-label" style="font-size: 8px;">None</span>
+                        <button class="btn btn-small" id="btn-next-hat">&gt;</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between;">
+                    <button class="btn btn-primary" id="btn-create-lobby" style="flex: 1;">CREATE ROOM</button>
+                    <button class="btn btn-secondary" id="btn-open-join" style="flex: 1;">JOIN ROOM</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: LOBBY ROOM (UC-8, 9, 11, 12, 13) -->
+        <div id="screen-lobby" class="screen">
+            <div class="card">
+                <h2>LOBBY ROOM</h2>
+                <div style="margin-bottom: 12px; font-size: 10px;">
+                    ROOM CODE: <strong id="lobby-id-display" style="color: #f7d51d;">------</strong>
+                    <button class="btn btn-small" id="btn-copy-lobby-id">COPY</button>
+                </div>
+
+                <!-- Host Settings Panel -->
+                <div id="host-controls-panel" class="host-controls" style="display: none;">
+                    <div style="font-size: 9px; color: #f7d51d; margin-bottom: 6px;">HOST CONTROLS</div>
+                    
+                    <div class="setting-row">
+                        <span>GAME MODE:</span>
+                        <select id="select-game-mode">
+                            <option value="flappy_race">Flappy Race (Default)</option>
+                            <option value="flappy_chained">Flappy Chained (4-Player)</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-row">
+                        <span>MAP AMOUNT:</span>
+                        <select id="select-map-amount">
+                            <option value="1">1 Map (10 Pipes)</option>
+                            <option value="3">3 Maps (30 Pipes)</option>
+                            <option value="5">5 Maps (50 Pipes)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Player List -->
+                <label>CONNECTED PLAYERS</label>
+                <ul id="player-list" class="player-list">
+                    <!-- Populated dynamically -->
+                </ul>
+
+                <!-- Ready & Start Buttons -->
+                <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <button class="btn btn-secondary btn-small" id="btn-open-settings">SETTINGS</button>
+                    <button class="btn btn-primary" id="btn-toggle-ready">TOGGLE READY</button>
+                    <button class="btn btn-primary" id="btn-start-match" style="display: none;">START MATCH</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN 3: GAME CANVAS & HUD -->
+        <div id="screen-game" class="screen">
+            <div id="game-canvas-container">
+                <canvas id="gameCanvas" width="800" height="640"></canvas>
+
+                <!-- HUD Overlay -->
+                <div id="hud">
+                    <div class="hud-panel" id="hud-map-progress">
+                        <span id="hud-pipe-count">Pipes Cleared: 0 / 10</span>
+                    </div>
+                </div>
+
+                <!-- 10s Finish Timer Banner -->
+                <div id="finish-timer-banner">
+                    1ST PLACE FINISHED!<br>
+                    FINISH TIMER: <span id="finish-timer-seconds">10</span>s
+                </div>
+
+                <!-- 3-2-1 Start Countdown -->
+                <div id="start-countdown">3</div>
+            </div>
+        </div>
+
+        <!-- SCREEN 4: LEADERBOARD & RESULTS (BR 6, 7, 13, 14) -->
+        <div id="screen-results" class="screen">
+            <div class="card" style="width: 520px;">
+                <h1 class="game-title">MATCH RESULTS</h1>
+
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>RANK</th>
+                            <th>PLAYER</th>
+                            <th>TIME / STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+
+                <button class="btn btn-primary" id="btn-return-lobby">RETURN TO LOBBY</button>
+            </div>
+        </div>
+
+        <!-- MODAL: JOIN ROOM -->
+        <div id="modal-join" class="modal">
+            <div class="card">
+                <h2>JOIN LOBBY</h2>
+                <div class="input-group">
+                    <label for="input-join-code">LOBBY CODE</label>
+                    <input type="text" id="input-join-code" placeholder="Enter 6-letter code..." style="text-transform: uppercase;">
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <button class="btn btn-secondary" id="btn-cancel-join">CANCEL</button>
+                    <button class="btn btn-primary" id="btn-confirm-join">JOIN</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: SETTINGS (UC-6, 7) -->
+        <div id="modal-settings" class="modal">
+            <div class="card">
+                <h2>AUDIO & GAME SETTINGS</h2>
+
+                <div class="setting-row">
+                    <span>BGM VOLUME:</span>
+                    <input type="range" id="slider-bgm" min="0" max="100" value="50">
+                </div>
+
+                <div class="setting-row" style="margin-top: 12px;">
+                    <span>SFX VOLUME:</span>
+                    <input type="range" id="slider-sfx" min="0" max="100" value="70">
+                </div>
+
+                <div class="setting-row" style="margin-top: 16px;">
+                    <span>60 FPS LOCK:</span>
+                    <input type="checkbox" id="check-fps-lock">
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" id="btn-close-settings">SAVE & CLOSE</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/physics.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
