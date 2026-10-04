@@ -202,11 +202,51 @@ class CanvasRenderer {
         // 6. Render Ground Strip
         this.renderGround();
 
-        // 7. Render Top-Left Racing Progress Bar UI
-        this.renderRacingProgressBar();
-
         // 8. Render Ink Splat Attack Screen Overlay
         this.renderInkOverlay();
+
+        // 9. Render Real-time Shaking Death Note Book Effect
+        this.renderDeathNoteEffect();
+    }
+
+    renderDeathNoteEffect() {
+        if (!window.deathnoteEffectUntil || Date.now() > window.deathnoteEffectUntil) return;
+        this.ctx.save();
+        const shakeX = (Math.random() - 0.5) * 12;
+        const shakeY = (Math.random() - 0.5) * 12;
+
+        const centerX = this.width / 2 + shakeX;
+        const centerY = this.height / 2 + shakeY;
+
+        // Dark aura vignette overlay
+        this.ctx.fillStyle = "rgba(10, 0, 0, 0.45)";
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Shaking Death Note Book Icon / Box
+        this.ctx.fillStyle = "#111111";
+        this.ctx.fillRect(centerX - 36, centerY - 48, 72, 96);
+        this.ctx.strokeStyle = "#d9534f";
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(centerX - 36, centerY - 48, 72, 96);
+
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "8px 'Press Start 2P'";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText("DEATH", centerX, centerY - 12);
+        this.ctx.fillText("NOTE", centerX, centerY + 12);
+
+        // Banner Text
+        this.ctx.fillStyle = "#f7d51d";
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.lineWidth = 4;
+        this.ctx.font = "11px 'Press Start 2P'";
+        this.ctx.textAlign = "center";
+        const bannerMsg = window.deathnoteBannerText || "DEATH NOTE ACTIVATED!";
+        this.ctx.strokeText(bannerMsg, centerX, centerY + 76);
+        this.ctx.fillText(bannerMsg, centerX, centerY + 76);
+
+        this.ctx.restore();
     }
 
     renderInkOverlay() {

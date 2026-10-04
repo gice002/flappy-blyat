@@ -111,7 +111,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
         }
 
         const checkpointId = `chk_${lobbyId}_${m}`;
-        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 500;
+        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 600;
         const respawnY = 320;
 
         // Pre-Checkpoint Item Column (Placed BEFORE checkpoint respawn point to prevent instant spawn-camping)

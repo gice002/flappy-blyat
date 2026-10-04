@@ -323,8 +323,8 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("return_to_lobby");
     });
 
-    if (btnResultsLeaveRoom) {
-        btnResultsLeaveRoom.addEventListener("click", () => {
+    if (btnResultsExitMenu) {
+        btnResultsExitMenu.addEventListener("click", () => {
             stopGameLoop();
             if (currentLobby) {
                 socket.emit("leave_lobby");
@@ -333,6 +333,24 @@ document.addEventListener("DOMContentLoaded", () => {
             clearLocalPlayerState();
             showScreen("mainMenu");
         });
+    }
+
+    // Real-Time HUD Activity Feed Helper
+    const hudActivityFeed = document.getElementById("hud-activity-feed");
+    function addActivityFeedLog(htmlText) {
+        if (!hudActivityFeed) return;
+        const line = document.createElement("div");
+        line.className = "feed-line";
+        line.innerHTML = htmlText;
+        hudActivityFeed.appendChild(line);
+
+        while (hudActivityFeed.children.length > 3) {
+            hudActivityFeed.removeChild(hudActivityFeed.firstChild);
+        }
+
+        setTimeout(() => {
+            if (line.parentNode) line.parentNode.removeChild(line);
+        }, 4000);
     }
 
     // Real-Time Chat System Listeners
@@ -570,10 +588,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 startCountdownEl.textContent = count;
             } else if (count === 0) {
                 startCountdownEl.textContent = "GO!";
+                physics.isFrozen = false; // Unfreeze immediately on GO! for instant frame 1 jump response
+                physics.predictedState.velocityY = 0;
             } else {
                 clearInterval(timer);
                 startCountdownEl.style.display = "none";
-                physics.isFrozen = false; // Unfreeze physics for active gameplay
+                physics.isFrozen = false;
+                physics.predictedState.velocityY = 0;
             }
         }, 1000);
     });
@@ -712,15 +733,35 @@ document.addEventListener("DOMContentLoaded", () => {
                 updateInventoryUI(null);
             }
 
-            if (!data.targetId) return; // Strict null check to prevent undefined target errors!
+            // Real-time Bottom-Right Activity Feed Logging
+            if (data.wasted) {
+                addActivityFeedLog(`<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span> used ${(data.itemType || "ITEM").toUpperCase()} <span style="color: #888;">(WASTED)</span>`);
+            } else if (data.shieldBlocked) {
+                addActivityFeedLog(`<span style="color: #55b02e;">${escapeHtml(data.targetName)}</span>'s SHIELD blocked <span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>'s ${(data.itemType || "ITEM").toUpperCase()}`);
+            } else {
+                const userStr = `<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>`;
+                const targetStr = `<span style="color: #ffffff;">${escapeHtml(data.targetName || "Target")}</span>`;
 
-            if (data.itemType === "ink" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
-                window.localInkUntil = Date.now() + (data.duration || 5000);
-                audioManager.playSFX("swooshing");
-            }
-
-            if (data.itemType === "curse" && data.targetId === localPlayerId && !data.shieldBlocked && !data.wasted) {
-                audioManager.playSFX("hit");
+                if (data.itemType === "speed") {
+                    addActivityFeedLog(`${userStr} activated <span style="color: #55b02e;">SPEED BOOST</span>`);
+                } else if (data.itemType === "shield") {
+                    addActivityFeedLog(`${userStr} activated <span style="color: #3993d0;">SHIELD</span>`);
+                } else if (data.itemType === "swap") {
+                    addActivityFeedLog(`${userStr} <span style="color: #f7d51d;">SWAPPED</span> position with ${targetStr}`);
+                } else if (data.itemType === "ink") {
+                    addActivityFeedLog(`${userStr} used <span style="color: #e07629;">BUCKET</span> on ${targetStr}`);
+                    if (data.targetId === localPlayerId) {
+                        window.localInkUntil = Date.now() + (data.duration || 5000);
+                        audioManager.playSFX("swooshing");
+                    }
+                } else if (data.itemType === "curse") {
+                    addActivityFeedLog(`${userStr} CURSED ${targetStr} <span style="color: #d9534f;">[SLOW]</span>`);
+                    if (data.targetId === localPlayerId) audioManager.playSFX("hit");
+                } else if (data.itemType === "deathnote") {
+                    addActivityFeedLog(`${userStr} used <span style="color: #d9534f;">DEATH NOTE</span> on ${targetStr}`);
+                } else if (data.itemType === "ice") {
+                    addActivityFeedLog(`${userStr} <span style="color: #70c5ce;">FROZE</span> ${targetStr} in ICE`);
+                }
             }
 
             if (data.shieldBlocked && data.targetId === localPlayerId) {
@@ -738,11 +779,8 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("deathnote_announcement", (data) => {
         if (!data) return;
         audioManager.playSFX("hit");
-        finishTimerBanner.style.display = "block";
-        finishTimerBanner.innerHTML = `<span style="color: #f7d51d;">${escapeHtml(data.attackerName)}</span> used <span style="color: #d9534f; font-weight: bold;">DEATH NOTE</span> on <span style="color: #ffffff;">${escapeHtml(data.targetName)}</span>!`;
-        setTimeout(() => {
-            finishTimerBanner.style.display = "none";
-        }, 3000);
+        window.deathnoteEffectUntil = Date.now() + 2000;
+        window.deathnoteBannerText = `${data.attackerName} used DEATH NOTE on ${data.targetName}!`;
     });
 
     socket.on("player_respawned", (data) => {
