@@ -287,3 +287,40 @@ Act as a Senior Full-Stack Game Developer. I have three specific UI/UX and rende
 
 Please provide the updated client-side rendering (renderer.js / client.js / ui.js) and server-side tracking (gameManager.js / Player models) logic to implement these features.
 
+================================================================================
+PROMPT 11
+================================================================================
+Act as a Senior Full-Stack Game Developer and Technical Writer. I need you to implement a UI fix, provide asset guidelines, and generate a professional README.md for our university project submission.
+
+1. HUD Layout Fixes (ui.js / style.css)
+
+    Remove Black Background: The UI container currently holding the HUD elements at the top-left has a solid black background. Make it completely transparent so it doesn't block the game view.
+
+    Reposition Exit Button: Move the "EXIT MATCH" button to the absolute top-right corner of the screen with a clean margin.
+
+2. Asset Dimension Guidelines
+
+    Please output a brief, bulleted list of the recommended pixel dimensions (Width x Height) for our image assets (Backgrounds, Pipes, Bird Sprites, and Hats) so they scale correctly with our new object-fit: cover and parallax logic.
+
+3. Generate README.md (University Network Course Submission)
+Please generate a comprehensive README.md in English. The primary audience is an academic instructor evaluating a Network Programming/Engineering course project. The tone should be highly technical and professional.
+
+Ensure the README includes the following sections:
+
+    Project Title & Introduction: A brief overview of the Multiplayer Flappy Bird Web Game.
+
+    Key Technical Highlights (CRITICAL):
+
+        Network Architecture: Thoroughly explain our use of Node.js & Socket.IO, heavily emphasizing the implementation of "Client-Prediction with Server Reconciliation" to handle latency and ensure authoritative game state.
+
+        "Flappy Chained" Mode: Explain the network logic behind this cooperative mode, where players are conceptually linked, and a single collision broadcasts a synchronization event to reset all players to the last server-validated checkpoint.
+
+    Tech Stack: HTML5 Canvas, Node.js, Express, Socket.IO.
+
+    Installation & Deployment: Clear terminal commands to clone the repo, run npm install, and start the server (npm start), along with default port info.
+
+    Project Structure: A neat ASCII tree representation of the client and server directory structure.
+
+Please output the code fixes first, followed by the asset guidelines, and finally the complete raw markdown for the README.md.
+
+
