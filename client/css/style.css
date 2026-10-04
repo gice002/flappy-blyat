@@ -52,8 +52,8 @@ body {
     border: 4px solid #000;
     border-radius: 12px;
     padding: 24px;
-    width: 440px;
-    max-width: 90vw;
+    width: 480px;
+    max-width: 92vw;
     box-shadow: 0 10px 0 #1b6267, 0 15px 20px rgba(0,0,0,0.5);
     text-align: center;
 }
@@ -96,6 +96,7 @@ input[type="text"] {
     color: #000;
     outline: none;
     text-align: center;
+    user-select: text;
 }
 
 .customization-section {
@@ -199,8 +200,8 @@ input[type="text"] {
 
 .player-list {
     list-style: none;
-    margin: 12px 0;
-    max-height: 180px;
+    margin: 8px 0;
+    max-height: 140px;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.2);
     border: 2px solid #000;
@@ -212,13 +213,13 @@ input[type="text"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px;
+    padding: 6px 8px;
     margin-bottom: 6px;
     background: rgba(255, 255, 255, 0.9);
     color: #000;
     border: 2px solid #000;
     border-radius: 6px;
-    font-size: 10px;
+    font-size: 9px;
 }
 
 .badge {
@@ -265,6 +266,52 @@ select {
     border: 2px solid #000;
     border-radius: 4px;
     background: #fff;
+}
+
+/* Chat UI Container */
+.chat-container {
+    margin-top: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid #000;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: left;
+}
+
+.chat-messages {
+    height: 100px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid #000;
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 8px;
+    color: #000;
+    margin-bottom: 6px;
+}
+
+.chat-msg-line {
+    margin-bottom: 4px;
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+.chat-author {
+    color: #1b547b;
+    font-weight: bold;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 6px 8px !important;
+    font-size: 8px !important;
+    text-align: left !important;
+    border: 2px solid #000 !important;
 }
 
 /* In-Game HUD */

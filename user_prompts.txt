@@ -141,3 +141,38 @@ Please update the codebase with the following requirements:
 Please provide the necessary code updates for the Server (gameManager.js / socket events), the Client UI (ui.js), the Client Rendering loop (client.js), and generate the structure for the new asset configuration file.
 
 and can you take all the prompt I prompted you since the beginning into a .txt file ?
+
+================================================================================
+PROMPT 6
+================================================================================
+Act as a Senior Full-Stack Game Developer. I need to implement the final set of user experience features and edge-case handling for our Socket.IO Flappy Bird Multiplayer project.
+
+Please update the codebase with the following exact requirements:
+
+1. In-game Exit & Anti-Ghost Room Garbage Collection
+
+    In-game Exit: Add an "Exit" button to the gameplay HUD. When clicked, display a confirmation pop-up ("Are you sure you want to leave the match?"). If confirmed, return the player directly to the Main Menu and emit a leave_room event to the server.
+
+    Mid-Match Host Disconnect: If the Host disconnects or leaves during an active match, the game MUST continue for the remaining players. The server will silently reassign the Host role to the next active player, which will take effect when they reach the post-match screen.
+
+    Ghost Room Prevention: Implement strict server-side Garbage Collection. If a room's active player count drops to 0 at any point (during lobby, gameplay, or post-match), the server must immediately destroy the room instance and clear it from memory to prevent memory leaks and zombie lobbies.
+
+2. Post-Match Flow (Leaderboard UI)
+
+    The post-match Leaderboard screen must feature two main action buttons: "PLAY AGAIN" and "LOBBY".
+
+    Host Authorization: ONLY the current Host can interact with these buttons. For all other non-host players, hide these buttons and display a status text saying "WAITING FOR HOST...".
+
+    PLAY AGAIN Action: When the Host clicks this, the server immediately restarts the match for everyone in the room using the current settings.
+
+    LOBBY Action: When the Host clicks this, the server transitions all players back to the Lobby room UI so they can change the map amount, mode, or wait for others.
+
+3. Real-Time Chat System & Input Isolation
+
+    Chat UI: Implement a real-time chat box (message log and input field) visible in both the Lobby and the Post-Match Leaderboard screens.
+
+    Socket Events: Add standard send_message and receive_message socket handlers to broadcast chat text with the sender's name.
+
+    CRITICAL Input Isolation: You MUST ensure that pressing the "Spacebar" or "Enter" keys while focused on the chat input field does NOT trigger the bird's flap mechanic or accidentally click other UI buttons. Implement proper event.stopPropagation() and prevent event bubbling specifically for the chat input DOM element.
+
+Please provide the required logic updates for the Server (gameManager.js / socket events), and the Client (ui.js and client.js) to seamlessly integrate these features.

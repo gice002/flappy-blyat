@@ -55,7 +55,7 @@
                     <button class="btn btn-danger btn-small" id="btn-leave-lobby">LEAVE ROOM</button>
                 </div>
 
-                <div style="margin-bottom: 12px; font-size: 10px;">
+                <div style="margin-bottom: 8px; font-size: 10px;">
                     ROOM CODE: <strong id="lobby-id-display" style="color: #f7d51d;">------</strong>
                     <button class="btn btn-small" id="btn-copy-lobby-id">COPY</button>
                 </div>
@@ -89,10 +89,19 @@
                 </ul>
 
                 <!-- Ready & Start Buttons -->
-                <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
                     <button class="btn btn-secondary btn-small" id="btn-open-settings">SETTINGS</button>
                     <button class="btn btn-primary" id="btn-toggle-ready">TOGGLE READY</button>
                     <button class="btn btn-primary" id="btn-start-match" style="display: none;">START MATCH</button>
+                </div>
+
+                <!-- Chat Box in Lobby -->
+                <div class="chat-container">
+                    <div class="chat-messages" id="lobby-chat-messages"></div>
+                    <div class="chat-input-row">
+                        <input type="text" class="chat-input" id="lobby-chat-input" placeholder="Type a message..." maxlength="80" autocomplete="off">
+                        <button class="btn btn-small btn-primary" id="btn-lobby-send-chat">SEND</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -106,6 +115,9 @@
                 <div id="hud">
                     <div class="hud-panel" id="hud-map-progress">
                         <span id="hud-pipe-count">Pipes Cleared: 0 / 10</span>
+                    </div>
+                    <div class="hud-panel">
+                        <button class="btn btn-danger btn-small" id="btn-in-game-exit" style="margin: 0; padding: 4px 8px;">EXIT MATCH</button>
                     </div>
                 </div>
 
@@ -138,7 +150,37 @@
                     </tbody>
                 </table>
 
-                <button class="btn btn-primary" id="btn-return-lobby">RETURN TO LOBBY</button>
+                <!-- Post-Match Action Controls -->
+                <div id="host-results-controls" style="display: flex; justify-content: space-around; margin-top: 10px;">
+                    <button class="btn btn-primary" id="btn-play-again" style="flex: 1;">PLAY AGAIN</button>
+                    <button class="btn btn-secondary" id="btn-return-lobby" style="flex: 1;">LOBBY</button>
+                </div>
+                <div id="waiting-host-text" style="display: none; margin-top: 10px; font-size: 10px; color: #f7d51d;">
+                    WAITING FOR HOST...
+                </div>
+
+                <!-- Chat Box in Results -->
+                <div class="chat-container">
+                    <div class="chat-messages" id="results-chat-messages"></div>
+                    <div class="chat-input-row">
+                        <input type="text" class="chat-input" id="results-chat-input" placeholder="Type a message..." maxlength="80" autocomplete="off">
+                        <button class="btn btn-small btn-primary" id="btn-results-send-chat">SEND</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: IN-GAME EXIT CONFIRMATION -->
+        <div id="modal-confirm-exit" class="modal">
+            <div class="card" style="width: 380px;">
+                <h2>LEAVE MATCH?</h2>
+                <p style="font-size: 9px; color: #fff; margin-bottom: 16px; line-height: 1.4;">
+                    Are you sure you want to leave the match?
+                </p>
+                <div style="display: flex; justify-content: space-between;">
+                    <button class="btn btn-secondary" id="btn-cancel-exit" style="flex: 1;">NO, STAY</button>
+                    <button class="btn btn-danger" id="btn-confirm-exit" style="flex: 1;">YES, EXIT</button>
+                </div>
             </div>
         </div>
 

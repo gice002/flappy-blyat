@@ -72,6 +72,14 @@ io.on("connection", (socket) => {
         lobbyManager.startMatch(socket);
     });
 
+    socket.on("play_again", () => {
+        lobbyManager.playAgain(socket);
+    });
+
+    socket.on("send_chat_message", (data) => {
+        lobbyManager.sendChatMessage(socket, data);
+    });
+
     socket.on("player_input", (data) => {
         lobbyManager.handlePlayerInput(socket, data);
     });

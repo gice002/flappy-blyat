@@ -82,7 +82,7 @@ class LobbyManager {
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
-        // Host Migration: Reassign host role to next available player if leaving player is Host
+        // Mid-Match & Lobby Host Migration: Silent re-assignment if Host leaves
         if (lobby.host_ID === socket.id && lobby.players.size > 1) {
             const remainingPlayers = Array.from(lobby.players.values()).filter(p => p.player_id !== socket.id);
             const newHost = remainingPlayers[0];
@@ -96,16 +96,24 @@ class LobbyManager {
 
         socket.emit("left_lobby");
 
+        // Strict Anti-Ghost Room Garbage Collection
         if (lobby.players.size === 0) {
-            const engine = this.gameEngines.get(lobbyId);
-            if (engine) engine.stop();
-            this.gameEngines.delete(lobbyId);
-            this.lobbies.delete(lobbyId);
+            this.destroyRoom(lobbyId);
         } else {
             this.io.to(lobbyId).emit("lobby_updated", {
                 lobby: this.serializeLobby(lobby)
             });
         }
+    }
+
+    destroyRoom(lobbyId) {
+        const engine = this.gameEngines.get(lobbyId);
+        if (engine) {
+            engine.stop();
+            this.gameEngines.delete(lobbyId);
+        }
+        this.lobbies.delete(lobbyId);
+        console.log(`[GC] Room destroyed & memory cleared for Lobby ID: ${lobbyId}`);
     }
 
     kickPlayer(socket, data) {
@@ -124,7 +132,6 @@ class LobbyManager {
 
         const targetPlayer = lobby.players.get(targetPlayerId);
         if (targetPlayer) {
-            // Notify target player they were kicked
             this.io.to(targetPlayerId).emit("player_kicked", {
                 message: "You have been kicked from the lobby by the Host."
             });
@@ -137,9 +144,13 @@ class LobbyManager {
             lobby.removePlayer(targetPlayerId);
             this.playerLobbyMap.delete(targetPlayerId);
 
-            this.io.to(lobbyId).emit("lobby_updated", {
-                lobby: this.serializeLobby(lobby)
-            });
+            if (lobby.players.size === 0) {
+                this.destroyRoom(lobbyId);
+            } else {
+                this.io.to(lobbyId).emit("lobby_updated", {
+                    lobby: this.serializeLobby(lobby)
+                });
+            }
         }
     }
 
@@ -248,6 +259,67 @@ class LobbyManager {
         }, 3000);
     }
 
+    playAgain(socket) {
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby || lobby.host_ID !== socket.id) {
+            return socket.emit("error_message", { message: "Only the Host can restart the match." });
+        }
+
+        // Stop existing engine
+        const oldEngine = this.gameEngines.get(lobbyId);
+        if (oldEngine) oldEngine.stop();
+
+        // Generate new maps & checkpoints
+        const mapData = generateMapsAndCheckpoints(lobby.amount_of_map, lobbyId);
+        lobby.maps = mapData.maps;
+        lobby.checkpoints = mapData.checkpoints;
+        lobby.itemBoxes = mapData.itemBoxes;
+        lobby.startCheckpointId = mapData.startCheckpointId;
+        lobby.finishLineX = mapData.finishLineX;
+        lobby.totalPipes = mapData.totalPipes;
+
+        const newEngine = new GameEngine(lobby, this.io);
+        this.gameEngines.set(lobbyId, newEngine);
+
+        this.io.to(lobbyId).emit("match_starting", {
+            lobby: this.serializeLobby(lobby),
+            maps: lobby.maps,
+            checkpoints: Array.from(lobby.checkpoints.values()),
+            itemBoxes: lobby.itemBoxes,
+            finishLineX: lobby.finishLineX,
+            totalPipes: lobby.totalPipes,
+            countdownSeconds: 3
+        });
+
+        setTimeout(() => {
+            newEngine.start();
+        }, 3000);
+    }
+
+    sendChatMessage(socket, data) {
+        const lobbyId = this.playerLobbyMap.get(socket.id);
+        if (!lobbyId) return;
+
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby) return;
+
+        const player = lobby.players.get(socket.id);
+        if (!player) return;
+
+        const text = (data.message || "").trim();
+        if (!text) return;
+
+        this.io.to(lobbyId).emit("receive_chat_message", {
+            senderId: socket.id,
+            senderName: player.name,
+            message: text,
+            timestamp: Date.now()
+        });
+    }
+
     handlePlayerInput(socket, data) {
         const lobbyId = this.playerLobbyMap.get(socket.id);
         if (!lobbyId) return;
@@ -265,7 +337,11 @@ class LobbyManager {
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
-        // Stop existing engine
+        // Only host can initiate return to lobby from post-match
+        if (lobby.host_ID !== socket.id) {
+            return socket.emit("error_message", { message: "Only the Host can return to lobby." });
+        }
+
         const engine = this.gameEngines.get(lobbyId);
         if (engine) {
             engine.stop();

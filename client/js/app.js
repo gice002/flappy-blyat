@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Socket.IO client initialization
     const socket = io();
 
-    // DOM Elements
+    // DOM Screens
     const screens = {
         mainMenu: document.getElementById("screen-main-menu"),
         lobbyRoom: document.getElementById("screen-lobby"),
@@ -15,9 +15,11 @@ document.addEventListener("DOMContentLoaded", () => {
         resultsView: document.getElementById("screen-results")
     };
 
+    // DOM Modals
     const modals = {
         joinLobby: document.getElementById("modal-join"),
-        settings: document.getElementById("modal-settings")
+        settings: document.getElementById("modal-settings"),
+        confirmExit: document.getElementById("modal-confirm-exit")
     };
 
     // Main Menu Inputs & Buttons
@@ -50,21 +52,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnOpenSettings = document.getElementById("btn-open-settings");
     const btnCloseSettings = document.getElementById("btn-close-settings");
 
-    // Settings Inputs
-    const sliderBgm = document.getElementById("slider-bgm");
-    const sliderSfx = document.getElementById("slider-sfx");
-    const checkFpsLock = document.getElementById("check-fps-lock");
-
-    // HUD Elements
-    const hudMapProgress = document.getElementById("hud-map-progress");
+    // In-Game Exit & HUD Elements
+    const btnInGameExit = document.getElementById("btn-in-game-exit");
+    const btnCancelExit = document.getElementById("btn-cancel-exit");
+    const btnConfirmExit = document.getElementById("btn-confirm-exit");
     const hudPipeCount = document.getElementById("hud-pipe-count");
     const finishTimerBanner = document.getElementById("finish-timer-banner");
     const finishTimerSecondsEl = document.getElementById("finish-timer-seconds");
     const startCountdownEl = document.getElementById("start-countdown");
 
-    // Results Elements
+    // Results Screen Elements
     const leaderboardBody = document.getElementById("leaderboard-body");
+    const hostResultsControls = document.getElementById("host-results-controls");
+    const btnPlayAgain = document.getElementById("btn-play-again");
     const btnReturnToLobby = document.getElementById("btn-return-lobby");
+    const waitingHostText = document.getElementById("waiting-host-text");
+
+    // Settings Inputs
+    const sliderBgm = document.getElementById("slider-bgm");
+    const sliderSfx = document.getElementById("slider-sfx");
+    const checkFpsLock = document.getElementById("check-fps-lock");
+
+    // Chat Elements
+    const lobbyChatMessages = document.getElementById("lobby-chat-messages");
+    const lobbyChatInput = document.getElementById("lobby-chat-input");
+    const btnLobbySendChat = document.getElementById("btn-lobby-send-chat");
+
+    const resultsChatMessages = document.getElementById("results-chat-messages");
+    const resultsChatInput = document.getElementById("results-chat-input");
+    const btnResultsSendChat = document.getElementById("btn-results-send-chat");
 
     // Canvas Setup
     const canvas = document.getElementById("gameCanvas");
@@ -78,6 +94,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const skins = ["Classic Yellow", "Crimson Red", "Emerald Green", "Ocean Blue", "Royal Gold"];
     const hats = ["None", "Golden Crown", "Top Hat", "Red Cap", "Viking Helmet"];
+
+    // ==========================================
+    // CRITICAL INPUT ISOLATION (Prevent Flap on Typing)
+    // ==========================================
+    const allInputElements = document.querySelectorAll("input, textarea, select");
+    allInputElements.forEach(inputEl => {
+        ["keydown", "keyup", "keypress"].forEach(eventType => {
+            inputEl.addEventListener(eventType, (e) => {
+                e.stopPropagation(); // Stop event bubbling to window spacebar listeners!
+            });
+        });
+    });
 
     // Update customization preview
     function updateCustomizationUI() {
@@ -179,6 +207,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // In-Game Exit & Confirmation Modal Listeners
+    btnInGameExit.addEventListener("click", () => {
+        modals.confirmExit.classList.add("active");
+    });
+
+    btnCancelExit.addEventListener("click", () => {
+        modals.confirmExit.classList.remove("active");
+    });
+
+    btnConfirmExit.addEventListener("click", () => {
+        modals.confirmExit.classList.remove("active");
+        stopGameLoop();
+        if (currentLobby) {
+            socket.emit("leave_lobby");
+            currentLobby = null;
+        }
+        showScreen("mainMenu");
+    });
+
     // Settings Modal Listeners
     btnOpenSettings.addEventListener("click", () => {
         modals.settings.classList.add("active");
@@ -218,9 +265,50 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("start_match");
     });
 
+    // Post-Match Controls
+    btnPlayAgain.addEventListener("click", () => {
+        socket.emit("play_again");
+    });
+
     btnReturnToLobby.addEventListener("click", () => {
         socket.emit("return_to_lobby");
     });
+
+    // Real-Time Chat System Listeners
+    function sendChatFromInput(inputEl) {
+        const text = inputEl.value.trim();
+        if (text) {
+            socket.emit("send_chat_message", { message: text });
+            inputEl.value = "";
+        }
+    }
+
+    btnLobbySendChat.addEventListener("click", () => sendChatFromInput(lobbyChatInput));
+    lobbyChatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendChatFromInput(lobbyChatInput);
+    });
+
+    btnResultsSendChat.addEventListener("click", () => sendChatFromInput(resultsChatInput));
+    resultsChatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendChatFromInput(resultsChatInput);
+    });
+
+    socket.on("receive_chat_message", (data) => {
+        const safeName = escapeHtml(data.senderName);
+        const safeMsg = escapeHtml(data.message);
+        const htmlLine = `<div class="chat-msg-line"><span class="chat-author">${safeName}:</span> ${safeMsg}</div>`;
+
+        // Append to both chat boxes
+        lobbyChatMessages.insertAdjacentHTML("beforeend", htmlLine);
+        resultsChatMessages.insertAdjacentHTML("beforeend", htmlLine);
+
+        lobbyChatMessages.scrollTop = lobbyChatMessages.scrollHeight;
+        resultsChatMessages.scrollTop = resultsChatMessages.scrollHeight;
+    });
+
+    function escapeHtml(str) {
+        return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
 
     // Socket Event Handlers
     socket.on("lobby_created", (data) => {
@@ -242,6 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("lobby_updated", (data) => {
         currentLobby = data.lobby;
         updateLobbyUI();
+        updateResultsHostState();
     });
 
     socket.on("left_lobby", () => {
@@ -278,7 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const hostBadge = (player.player_id === currentLobby.host_ID) ? `<span class="badge badge-host">HOST</span>` : "";
             const readyBadge = player.ready_status ? `<span class="badge badge-ready">READY</span>` : `<span class="badge badge-not-ready">NOT READY</span>`;
 
-            // Render Kick button ONLY for Host and ONLY for non-host players
             let kickButtonHtml = "";
             if (isHost && player.player_id !== localPlayerId) {
                 kickButtonHtml = `<button class="btn btn-kick btn-danger" data-kick-id="${player.player_id}">KICK</button>`;
@@ -296,7 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
             playerListEl.appendChild(item);
         }
 
-        // Attach event listeners to kick buttons
+        // Attach listeners to kick buttons
         const kickButtons = playerListEl.querySelectorAll(".btn-kick");
         kickButtons.forEach(btn => {
             btn.addEventListener("click", (e) => {
@@ -331,21 +419,30 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function updateResultsHostState() {
+        if (!currentLobby) return;
+        const isHost = (localPlayerId === currentLobby.host_ID);
+        if (isHost) {
+            hostResultsControls.style.display = "flex";
+            waitingHostText.style.display = "none";
+        } else {
+            hostResultsControls.style.display = "none";
+            waitingHostText.style.display = "block";
+        }
+    }
+
     // Match Start Handler
     socket.on("match_starting", (data) => {
         currentLobby = data.lobby;
         showScreen("gameView");
 
-        // Pass Map & Checkpoint data to Renderer
         renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
         
-        // Reset physics engine local state
         const startChk = data.checkpoints.find(c => c.checkpoint_id === data.lobby.startCheckpointId);
         const startX = startChk ? startChk.respawn_coordinate_x : 100;
         const startY = startChk ? startChk.respawn_coordinate_y : 320;
         physics.resetLocalState(startX, startY);
 
-        // 3-2-1 Countdown Overlay
         let count = data.countdownSeconds || 3;
         startCountdownEl.style.display = "block";
         startCountdownEl.textContent = count;
@@ -364,9 +461,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 1000);
     });
 
-    // In-Game Jump Listener
+    // In-Game Jump Listener with Input Focus Check
     function handleJumpInput() {
         if (!gameLoopRunning) return;
+        // Strict input isolation check: if user is typing in any text input, do NOT flap!
+        if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) {
+            return;
+        }
         const input = physics.handleLocalJump();
         audioManager.playSFX("wing");
         socket.emit("player_input", input);
@@ -391,11 +492,8 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("game_snapshot", (snapshot) => {
         physics.reconcileServerSnapshot(snapshot);
 
-        // Update HUD
-        const localState = physics.predictedState;
         hudPipeCount.textContent = `Pipes Cleared: ${snapshot.players.find(p => p.player_id === localPlayerId)?.last_pipe_passed || 0} / ${renderer.finishLineX ? Math.floor(renderer.finishLineX / 250) : 10}`;
 
-        // Update 10s Finish Timer Banner
         if (snapshot.finishCountdown !== null && snapshot.finishCountdown >= 0) {
             finishTimerBanner.style.display = "block";
             finishTimerSecondsEl.textContent = snapshot.finishCountdown;
@@ -425,16 +523,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // 60 FPS Client Game Render & Prediction Loop
     function startGameLoop() {
         gameLoopRunning = true;
-        let lastTime = performance.now();
 
         function step(now) {
             if (!gameLoopRunning) return;
 
-            // Physics step (60 FPS tick)
             physics.updateLocalPhysics();
             physics.updateRemotePlayers();
-
-            // Render step
             renderer.render(now);
 
             animationFrameId = requestAnimationFrame(step);
@@ -456,6 +550,9 @@ document.addEventListener("DOMContentLoaded", () => {
         stopGameLoop();
         finishTimerBanner.style.display = "none";
         showScreen("resultsView");
+
+        // Update Host authorization buttons vs waiting text
+        updateResultsHostState();
 
         // Populate Leaderboard Table
         leaderboardBody.innerHTML = "";
