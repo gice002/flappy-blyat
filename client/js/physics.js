@@ -22,6 +22,7 @@ class PhysicsEngine {
         this.remotePlayers = new Map();
         this.isFrozen = false;
         this.localIsFinished = false;
+        this.localIsFrozenInIce = false;
         this.localSpeedMultiplier = 1.0;
         this.localHasShield = false;
         this.localIsInvincible = false;
@@ -46,6 +47,7 @@ class PhysicsEngine {
         this.pendingInputs = [];
         this.isFrozen = false;
         this.localIsFinished = false;
+        this.localIsFrozenInIce = false;
         this.localSpeedMultiplier = 1.0;
         this.localHasShield = false;
         this.localIsInvincible = false;
@@ -55,7 +57,7 @@ class PhysicsEngine {
 
     // Process local jump input instantly for zero latency
     handleLocalJump() {
-        if (this.isFrozen || this.localIsFinished) return null;
+        if (this.isFrozen || this.localIsFinished || this.localIsFrozenInIce) return null;
         this.inputSequence++;
         const input = {
             sequence: this.inputSequence,
@@ -74,7 +76,7 @@ class PhysicsEngine {
 
     // Step local physics frame (at 60 FPS)
     updateLocalPhysics() {
-        if (this.isFrozen || this.localIsFinished) {
+        if (this.isFrozen || this.localIsFinished || this.localIsFrozenInIce) {
             this.predictedState.velocityY = 0;
             return;
         }
@@ -110,6 +112,8 @@ class PhysicsEngine {
                 this.localHeldItem = serverPlayer.heldItem || null;
                 this.localSpeedMultiplier = (serverPlayer.speedMultiplier !== undefined && serverPlayer.speedMultiplier !== null) ? serverPlayer.speedMultiplier : 1.0;
                 this.localIsFinished = serverPlayer.is_finished || false;
+                this.localIsFrozenInIce = serverPlayer.isFrozenInIce || false;
+                this.localIsBucketHead = serverPlayer.isBucketHead || false;
 
                 if (this.localIsFinished) {
                     this.predictedState.x = serverPlayer.x;
@@ -117,6 +121,10 @@ class PhysicsEngine {
                     this.predictedState.velocityY = 0;
                     this.pendingInputs = [];
                     continue;
+                }
+
+                if (this.localIsFrozenInIce) {
+                    this.predictedState.velocityY = 0;
                 }
 
                 // Server baseline position
@@ -174,6 +182,8 @@ class PhysicsEngine {
                         chain_index: serverPlayer.chain_index,
                         hasShield: serverPlayer.hasShield,
                         isInvincible: serverPlayer.isInvincible,
+                        isBucketHead: serverPlayer.isBucketHead,
+                        isFrozenInIce: serverPlayer.isFrozenInIce,
                         heldItem: serverPlayer.heldItem,
                         speedMultiplier: serverPlayer.speedMultiplier
                     };
@@ -190,6 +200,8 @@ class PhysicsEngine {
                     remote.chain_index = serverPlayer.chain_index;
                     remote.hasShield = serverPlayer.hasShield;
                     remote.isInvincible = serverPlayer.isInvincible;
+                    remote.isBucketHead = serverPlayer.isBucketHead;
+                    remote.isFrozenInIce = serverPlayer.isFrozenInIce;
                     remote.heldItem = serverPlayer.heldItem;
                     remote.speedMultiplier = serverPlayer.speedMultiplier;
                 }
@@ -200,7 +212,7 @@ class PhysicsEngine {
     // Interpolate remote players towards target positions
     updateRemotePlayers() {
         for (let remote of this.remotePlayers.values()) {
-            if (remote.is_finished) {
+            if (remote.is_finished || remote.isFrozenInIce) {
                 remote.x = remote.targetX;
                 remote.y = remote.targetY;
                 remote.velocityY = 0;

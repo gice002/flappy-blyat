@@ -4,10 +4,13 @@ const { generateMapsAndCheckpoints } = require("./mapGenerator");
 const GameEngine = require("./gameLoop");
 const {
     CURSE_SPEED_MULTIPLIER,
+    SPEED_BOOST_MULTIPLIER,
     CURSE_DURATION_MS,
     BUCKET_DURATION_MS,
     SHIELD_DURATION_MS,
-    INVINCIBLE_DURATION_MS
+    INVINCIBLE_DURATION_MS,
+    SPEED_BOOST_DURATION_MS,
+    ICE_DURATION_MS
 } = require("../config/constants");
 
 class LobbyManager {
@@ -480,7 +483,85 @@ class LobbyManager {
             return;
         }
 
-        if (usedItem === "ink" || usedItem === "curse") {
+        if (usedItem === "speed") {
+            player.speedMultiplier = SPEED_BOOST_MULTIPLIER;
+            if (player.speedTimer) clearTimeout(player.speedTimer);
+
+            player.speedTimer = setTimeout(() => {
+                player.speedMultiplier = 1.0;
+                player.speedTimer = null;
+            }, SPEED_BOOST_DURATION_MS);
+
+            this.io.to(lobby.Lobby_id).emit("item_used", {
+                userId: player.player_id,
+                userName: player.name,
+                itemType: "speed",
+                targetId: player.player_id,
+                targetName: player.name,
+                duration: SPEED_BOOST_DURATION_MS
+            });
+            return;
+        }
+
+        if (usedItem === "swap") {
+            // Pick a random active opponent in lobby
+            const opponents = Array.from(lobby.players.values()).filter(p => p.player_id !== player.player_id && p.is_alive && !p.is_finished);
+            if (opponents.length === 0) {
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "swap",
+                    wasted: true
+                });
+                return;
+            }
+
+            const targetPlayer = opponents[Math.floor(Math.random() * opponents.length)];
+
+            if (targetPlayer.hasShield) {
+                targetPlayer.hasShield = false;
+                if (targetPlayer.shieldTimer) clearTimeout(targetPlayer.shieldTimer);
+                targetPlayer.isInvincible = true;
+                targetPlayer.invincibleTimer = setTimeout(() => {
+                    targetPlayer.isInvincible = false;
+                    this.io.to(lobby.Lobby_id).emit("invincibility_expired", { playerId: targetPlayer.player_id });
+                }, INVINCIBLE_DURATION_MS);
+
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "swap",
+                    targetId: targetPlayer.player_id,
+                    targetName: targetPlayer.name,
+                    shieldBlocked: true
+                });
+                return;
+            }
+
+            if (targetPlayer.isInvincible) {
+                this.io.to(lobby.Lobby_id).emit("item_used", { userId: player.player_id, itemType: "swap", wasted: true });
+                return;
+            }
+
+            // Swap physical positions
+            const tempX = player.x;
+            const tempY = player.y;
+            player.x = targetPlayer.x;
+            player.y = targetPlayer.y;
+            targetPlayer.x = tempX;
+            targetPlayer.y = tempY;
+
+            this.io.to(lobby.Lobby_id).emit("item_used", {
+                userId: player.player_id,
+                userName: player.name,
+                itemType: "swap",
+                targetId: targetPlayer.player_id,
+                targetName: targetPlayer.name
+            });
+            return;
+        }
+
+        if (usedItem === "ink" || usedItem === "curse" || usedItem === "deathnote" || usedItem === "ice") {
             // Find 1st place player (max X position among active non-finished players)
             let firstPlacePlayer = null;
             let maxX = -1;
@@ -491,14 +572,24 @@ class LobbyManager {
                 }
             }
 
-            // CRITICAL: If the player currently in 1st place uses Ink or Curse, the item is consumed with NO effect (wasted)!
-            if (!firstPlacePlayer || firstPlacePlayer.player_id === player.player_id) {
+            // If user is 1st place when using targeted attack, target 2nd place or waste if solo
+            if (firstPlacePlayer && firstPlacePlayer.player_id === player.player_id) {
+                let secondPlacePlayer = null;
+                let secondMaxX = -1;
+                for (let p of lobby.players.values()) {
+                    if (p.player_id !== player.player_id && p.is_alive && !p.is_finished && p.x > secondMaxX) {
+                        secondMaxX = p.x;
+                        secondPlacePlayer = p;
+                    }
+                }
+                firstPlacePlayer = secondPlacePlayer;
+            }
+
+            if (!firstPlacePlayer) {
                 this.io.to(lobby.Lobby_id).emit("item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: usedItem,
-                    targetId: firstPlacePlayer ? firstPlacePlayer.player_id : null,
-                    targetName: firstPlacePlayer ? firstPlacePlayer.name : null,
                     wasted: true
                 });
                 return;
@@ -535,8 +626,20 @@ class LobbyManager {
                 return;
             }
 
-            // Apply item effect to 1st place target
+            if (firstPlacePlayer.isInvincible) {
+                this.io.to(lobby.Lobby_id).emit("item_used", { userId: player.player_id, itemType: usedItem, wasted: true });
+                return;
+            }
+
+            // Apply item effect to target
             if (usedItem === "ink") {
+                firstPlacePlayer.isBucketHead = true;
+                if (firstPlacePlayer.bucketTimer) clearTimeout(firstPlacePlayer.bucketTimer);
+                firstPlacePlayer.bucketTimer = setTimeout(() => {
+                    firstPlacePlayer.isBucketHead = false;
+                    firstPlacePlayer.bucketTimer = null;
+                }, BUCKET_DURATION_MS);
+
                 this.io.to(lobby.Lobby_id).emit("item_used", {
                     userId: player.player_id,
                     userName: player.name,
@@ -546,7 +649,6 @@ class LobbyManager {
                     duration: BUCKET_DURATION_MS
                 });
             } else if (usedItem === "curse") {
-                // Reduce target player's X-axis speed by 35% for 6 seconds
                 firstPlacePlayer.speedMultiplier = CURSE_SPEED_MULTIPLIER;
                 if (firstPlacePlayer.curseTimer) clearTimeout(firstPlacePlayer.curseTimer);
                 firstPlacePlayer.curseTimer = setTimeout(() => {
@@ -561,6 +663,43 @@ class LobbyManager {
                     targetId: firstPlacePlayer.player_id,
                     targetName: firstPlacePlayer.name,
                     duration: CURSE_DURATION_MS
+                });
+            } else if (usedItem === "deathnote") {
+                // Respawn target 1st place back to last checkpoint
+                const chkObj = lobby.checkpoints.get(firstPlacePlayer.checkpoint_id) || Array.from(lobby.checkpoints.values())[0];
+                const respawnX = chkObj ? chkObj.respawn_coordinate_x : 100;
+                firstPlacePlayer.x = respawnX;
+                firstPlacePlayer.y = 320;
+                firstPlacePlayer.velocityY = 0;
+
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "deathnote",
+                    targetId: firstPlacePlayer.player_id,
+                    targetName: firstPlacePlayer.name
+                });
+
+                this.io.to(lobby.Lobby_id).emit("deathnote_announcement", {
+                    attackerName: player.name,
+                    targetName: firstPlacePlayer.name
+                });
+            } else if (usedItem === "ice") {
+                firstPlacePlayer.isFrozenInIce = true;
+                firstPlacePlayer.velocityY = 0;
+                if (firstPlacePlayer.iceTimer) clearTimeout(firstPlacePlayer.iceTimer);
+                firstPlacePlayer.iceTimer = setTimeout(() => {
+                    firstPlacePlayer.isFrozenInIce = false;
+                    firstPlacePlayer.iceTimer = null;
+                }, ICE_DURATION_MS);
+
+                this.io.to(lobby.Lobby_id).emit("item_used", {
+                    userId: player.player_id,
+                    userName: player.name,
+                    itemType: "ice",
+                    targetId: firstPlacePlayer.player_id,
+                    targetName: firstPlacePlayer.name,
+                    duration: ICE_DURATION_MS
                 });
             }
         }

@@ -84,7 +84,7 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
             });
 
             // 2. Item Spawning: Items MUST ONLY spawn in "flappy_race" mode
-            if (modeId !== "flappy_chained" && (i === 3 || i === 5 || i === 8)) {
+            if (modeId !== "flappy_chained" && (i === 2 || i === 4 || i === 7 || i === 9)) {
                 const itemX = currentX + Math.floor(pipeSpacingX / 2);
                 const centerGapY = topY + pipeHeight + Math.floor(gapSize / 2);
 
@@ -111,8 +111,30 @@ function generateMapsAndCheckpoints(amountOfMaps, lobbyId, modeId = "flappy_race
         }
 
         const checkpointId = `chk_${lobbyId}_${m}`;
-        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 300;
+        const respawnX = mapPipes[mapPipes.length - 1].x + pipeWidth + 500;
         const respawnY = 320;
+
+        // Pre-Checkpoint Item Column (Placed BEFORE checkpoint respawn point to prevent instant spawn-camping)
+        if (modeId !== "flappy_chained") {
+            const preChkItemX = respawnX - 120;
+            for (let boxIdx = 0; boxIdx < 6; boxIdx++) {
+                const boxY = 160 + (boxIdx * 40);
+
+                itemXList.push(preChkItemX);
+                itemYList.push(boxY);
+
+                itemBoxes.push({
+                    id: `item_${lobbyId}_chk_pre_${m}_${boxIdx}`,
+                    x: preChkItemX,
+                    y: boxY,
+                    width: 32,
+                    height: 32,
+                    collected: false,
+                    isActive: true,
+                    collectedBy: null
+                });
+            }
+        }
 
         const checkpointObj = new Checkpoint(
             checkpointId,

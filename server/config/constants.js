@@ -33,10 +33,13 @@ const SUBSEQUENT_THEMES = [
 
 // Item System Parameters & Duration Buffs
 const CURSE_SPEED_MULTIPLIER = 0.65; // 35% speed reduction
+const SPEED_BOOST_MULTIPLIER = 1.50;  // 50% speed increase
 const CURSE_DURATION_MS = 6000;      // 6 seconds
 const BUCKET_DURATION_MS = 5000;     // 5 seconds
 const SHIELD_DURATION_MS = 5000;     // 5 seconds
 const INVINCIBLE_DURATION_MS = 3000; // 3 seconds
+const SPEED_BOOST_DURATION_MS = 4000;// 4 seconds
+const ICE_DURATION_MS = 2500;        // 2.5 seconds
 const ITEM_RESPAWN_MS = 3000;        // 3 seconds
 
 module.exports = {
@@ -58,9 +61,12 @@ module.exports = {
     DEFAULT_THEME,
     SUBSEQUENT_THEMES,
     CURSE_SPEED_MULTIPLIER,
+    SPEED_BOOST_MULTIPLIER,
     CURSE_DURATION_MS,
     BUCKET_DURATION_MS,
     SHIELD_DURATION_MS,
     INVINCIBLE_DURATION_MS,
+    SPEED_BOOST_DURATION_MS,
+    ICE_DURATION_MS,
     ITEM_RESPAWN_MS
 };

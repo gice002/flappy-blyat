@@ -21,13 +21,18 @@ class Player {
         this.wipes_caused = 0; // Mode B Chained mode wipe tracker
 
         // Inventory & Power-Up System State
-        this.heldItem = null;       // "ink" | "curse" | "shield" | null (Capacity: Max 1)
+        this.heldItem = null;       // "ink" | "curse" | "shield" | "speed" | "swap" | "deathnote" | "ice"
         this.hasShield = false;     // Buff: active barrier
         this.isInvincible = false;  // Buff: 3s pipe immunity post-shield block
-        this.speedMultiplier = 1.0; // Debuff: 0.9 when cursed, 1.0 normal
+        this.isBucketHead = false;  // Visual debuff: bucket icon over bird head
+        this.isFrozenInIce = false; // Debuff: 2.5s ice freeze mid-air
+        this.speedMultiplier = 1.0; // Debuff: 0.65 when cursed, 1.50 speed boost, 1.0 normal
         this.curseTimer = null;
         this.shieldTimer = null;
         this.invincibleTimer = null;
+        this.bucketTimer = null;
+        this.iceTimer = null;
+        this.speedTimer = null;
     }
 
     resetForMatch(startX, startY, initialCheckpointId) {
@@ -46,6 +51,8 @@ class Player {
         this.heldItem = null;
         this.hasShield = false;
         this.isInvincible = false;
+        this.isBucketHead = false;
+        this.isFrozenInIce = false;
         this.speedMultiplier = 1.0;
         if (this.curseTimer) clearTimeout(this.curseTimer);
         this.curseTimer = null;
@@ -53,6 +60,12 @@ class Player {
         this.shieldTimer = null;
         if (this.invincibleTimer) clearTimeout(this.invincibleTimer);
         this.invincibleTimer = null;
+        if (this.bucketTimer) clearTimeout(this.bucketTimer);
+        this.bucketTimer = null;
+        if (this.iceTimer) clearTimeout(this.iceTimer);
+        this.iceTimer = null;
+        if (this.speedTimer) clearTimeout(this.speedTimer);
+        this.speedTimer = null;
     }
 
     toJSON() {
@@ -77,6 +90,8 @@ class Player {
             heldItem: this.heldItem,
             hasShield: this.hasShield,
             isInvincible: this.isInvincible,
+            isBucketHead: this.isBucketHead,
+            isFrozenInIce: this.isFrozenInIce,
             speedMultiplier: this.speedMultiplier
         };
     }

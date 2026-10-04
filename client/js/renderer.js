@@ -40,6 +40,21 @@ class CanvasRenderer {
         }, 120);
     }
 
+    drawFallbackPngBox(x, y, width, height, text = "PNG") {
+        this.ctx.save();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillRect(x, y, width, height);
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, width, height);
+        this.ctx.fillStyle = "#000000";
+        this.ctx.font = "7px 'Press Start 2P'";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(text, x + width / 2, y + height / 2);
+        this.ctx.restore();
+    }
+
     async loadAssetsConfig() {
         const sources = {
             bird0: "assets/images/flappybird0.png",
@@ -468,7 +483,9 @@ class CanvasRenderer {
                 false,
                 remote.hasShield,
                 remote.speedMultiplier,
-                remote.isInvincible
+                remote.isInvincible,
+                remote.isBucketHead,
+                remote.isFrozenInIce
             );
         }
 
@@ -484,12 +501,26 @@ class CanvasRenderer {
             true,
             this.physics.localHasShield,
             this.physics.localSpeedMultiplier,
-            this.physics.localIsInvincible
+            this.physics.localIsInvincible,
+            this.physics.localIsBucketHead,
+            this.physics.localIsFrozenInIce
         );
     }
 
-    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0, isInvincible = false) {
+    drawSingleBird(x, y, velocityY, skinId, hatId, name, isLocal, hasShield = false, speedMultiplier = 1.0, isInvincible = false, isBucketHead = false, isFrozenInIce = false) {
         this.ctx.save();
+
+        // If Bucket Head active (Ink hit), render bucket.png above bird head (visible to all players)
+        if (isBucketHead) {
+            this.ctx.save();
+            const bucketImg = (this.itemImages && (this.itemImages.ink || this.itemImages.bucket)) || this.images.bucket;
+            if (bucketImg && bucketImg.complete) {
+                this.ctx.drawImage(bucketImg, x + 17 - 16, y - 38, 32, 32);
+            } else {
+                this.drawFallbackPngBox(x + 17 - 14, y - 36, 28, 20, "PNG");
+            }
+            this.ctx.restore();
+        }
 
         // If Cursed (speedMultiplier < 1.0), draw Slowness_JE4 icon at bird's tail
         if (speedMultiplier < 1.0) {
@@ -540,6 +571,22 @@ class CanvasRenderer {
             }
         }
 
+        // If Frozen in Ice, render Ice Block overlay over bird
+        if (isFrozenInIce) {
+            this.ctx.save();
+            this.ctx.fillStyle = "rgba(112, 197, 206, 0.6)";
+            this.ctx.strokeStyle = "#3993d0";
+            this.ctx.lineWidth = 3;
+            this.ctx.fillRect(x + 17 - 22, y + 12 - 20, 44, 40);
+            this.ctx.strokeRect(x + 17 - 22, y + 12 - 20, 44, 40);
+            this.ctx.fillStyle = "#ffffff";
+            this.ctx.font = "8px 'Press Start 2P'";
+            this.ctx.textAlign = "center";
+            this.ctx.strokeText("ICE", x + 17, y + 16);
+            this.ctx.fillText("ICE", x + 17, y + 16);
+            this.ctx.restore();
+        }
+
         let rotationAngle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (velocityY * 0.1)));
 
         this.ctx.translate(x + 17, y + 12);
@@ -569,7 +616,9 @@ class CanvasRenderer {
 
         let labelName = name;
         if (speedMultiplier < 1.0) labelName += " [SLOW]";
+        if (speedMultiplier > 1.0) labelName += " [FAST]";
         if (isInvincible) labelName += " [STAR]";
+        if (isFrozenInIce) labelName += " [ICE]";
         this.ctx.strokeText(labelName, x + 17, y - 10);
         this.ctx.fillText(labelName, x + 17, y - 10);
 

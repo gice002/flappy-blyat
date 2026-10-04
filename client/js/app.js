@@ -76,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const hostResultsControls = document.getElementById("host-results-controls");
     const btnPlayAgain = document.getElementById("btn-play-again");
     const btnReturnToLobby = document.getElementById("btn-return-lobby");
+    const btnResultsLeaveRoom = document.getElementById("btn-results-leave-room");
     const waitingHostText = document.getElementById("waiting-host-text");
 
     // Settings Inputs
@@ -322,6 +323,18 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("return_to_lobby");
     });
 
+    if (btnResultsLeaveRoom) {
+        btnResultsLeaveRoom.addEventListener("click", () => {
+            stopGameLoop();
+            if (currentLobby) {
+                socket.emit("leave_lobby");
+                currentLobby = null;
+            }
+            clearLocalPlayerState();
+            showScreen("mainMenu");
+        });
+    }
+
     // Real-Time Chat System Listeners
     function sendChatFromInput(inputEl) {
         const text = inputEl.value.trim();
@@ -478,14 +491,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const isHost = (localPlayerId === currentLobby.host_ID);
         
         if (isHost) {
-            btnPlayAgain.style.display = "block";
+            btnPlayAgain.style.display = "inline-block";
+            btnReturnToLobby.style.display = "inline-block";
             waitingHostText.style.display = "none";
         } else {
             btnPlayAgain.style.display = "none";
+            btnReturnToLobby.style.display = "none";
             waitingHostText.style.display = "block";
         }
-        // RETURN TO LOBBY button is ALWAYS visible for ALL players!
-        btnReturnToLobby.style.display = "block";
+        // LEAVE ROOM button is ALWAYS visible for ALL players!
+        if (btnResultsLeaveRoom) {
+            btnResultsLeaveRoom.style.display = "inline-block";
+        }
     }
 
     const loadingStatusText = document.getElementById("loading-status-text");
@@ -575,7 +592,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const itemMap = {
                 ink: "assets/images/items/bucket.png",
                 shield: "assets/images/items/Absorption_JE3_BE3.png",
-                curse: "assets/images/items/Slowness_JE4.png"
+                curse: "assets/images/items/Slowness_JE4.png",
+                speed: "assets/images/items/item_box.svg",
+                swap: "assets/images/items/item_box.svg",
+                deathnote: "assets/images/items/item_box.svg",
+                ice: "assets/images/items/item_box.svg"
             };
             inventoryItemIcon.src = itemMap[itemType] || `assets/images/items/item_${itemType}.svg`;
         } else {
@@ -712,6 +733,16 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (err) {
             console.warn("[Client] Safely handled item_used listener error:", err);
         }
+    });
+
+    socket.on("deathnote_announcement", (data) => {
+        if (!data) return;
+        audioManager.playSFX("hit");
+        finishTimerBanner.style.display = "block";
+        finishTimerBanner.innerHTML = `<span style="color: #f7d51d;">${escapeHtml(data.attackerName)}</span> used <span style="color: #d9534f; font-weight: bold;">DEATH NOTE</span> on <span style="color: #ffffff;">${escapeHtml(data.targetName)}</span>!`;
+        setTimeout(() => {
+            finishTimerBanner.style.display = "none";
+        }, 3000);
     });
 
     socket.on("player_respawned", (data) => {

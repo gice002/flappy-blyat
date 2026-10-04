@@ -234,7 +234,7 @@ class GameEngine {
                 item.isActive = false;
                 item.collectedBy = player.player_id;
 
-                const itemTypes = ["ink", "curse", "shield"];
+                const itemTypes = ["ink", "curse", "shield", "speed", "swap", "deathnote", "ice"];
                 const acquiredItem = itemTypes[Math.floor(Math.random() * itemTypes.length)];
                 player.heldItem = acquiredItem;
 
