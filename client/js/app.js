@@ -4,16 +4,19 @@ window.playerSkinId = 0;
 window.playerHatId = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
-    // Socket.IO client initialization
-    const socket = io();
-    window.socket = socket;
+    // Native WebSocket client initialization
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    window.ws = ws;
 
-    socket.on("connect", () => {
-        if (socket.id) {
-            localPlayerId = socket.id;
-            physics.setLocalPlayerId(socket.id);
+    // Helper: Send JSON message to server with standardized protocol { type, data }
+    function sendWs(type, data = {}) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type, data }));
+        } else {
+            console.warn(`[WebSocket] Cannot send ${type}: connection state is ${ws.readyState}`);
         }
-    });
+    }
 
     // DOM Screens
     const screens = {
@@ -81,7 +84,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultsSubHeader = document.getElementById("results-sub-header");
     const leaderboardHead = document.getElementById("leaderboard-head");
     const leaderboardBody = document.getElementById("leaderboard-body");
-    const hostResultsControls = document.getElementById("host-results-controls");
     const btnPlayAgain = document.getElementById("btn-play-again");
     const btnReturnToLobby = document.getElementById("btn-return-lobby");
     const btnResultsExitMenu = document.getElementById("btn-results-exit-menu");
@@ -173,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (currentLobby) {
-            socket.emit("update_customization", {
+            sendWs("update_customization", {
                 skin_ID: window.playerSkinId,
                 hat_ID: window.playerHatId,
                 name: window.playerName
@@ -219,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearLocalPlayerState();
         window.playerName = nameInput.value.trim() || "BirdPlayer";
         audioManager.playBGM();
-        socket.emit("create_lobby", {
+        sendWs("create_lobby", {
             name: window.playerName,
             skin_ID: window.playerSkinId,
             hat_ID: window.playerHatId
@@ -240,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearLocalPlayerState();
         window.playerName = nameInput.value.trim() || "BirdPlayer";
         audioManager.playBGM();
-        socket.emit("join_lobby", {
+        sendWs("join_lobby", {
             Lobby_id: code,
             name: window.playerName,
             skin_ID: window.playerSkinId,
@@ -260,7 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Leave Room Listener
     btnLeaveLobby.addEventListener("click", () => {
         if (currentLobby) {
-            socket.emit("leave_lobby");
+            sendWs("leave_lobby");
             currentLobby = null;
             clearLocalPlayerState();
             showScreen("mainMenu");
@@ -280,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
         modals.confirmExit.classList.remove("active");
         stopGameLoop();
         if (currentLobby) {
-            socket.emit("leave_lobby");
+            sendWs("leave_lobby");
             currentLobby = null;
         }
         clearLocalPlayerState();
@@ -306,36 +308,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Host Settings Listeners
     selectMode.addEventListener("change", (e) => {
-        socket.emit("update_lobby_settings", { mode_id: e.target.value });
+        sendWs("update_lobby_settings", { mode_id: e.target.value });
     });
 
     selectMaps.addEventListener("change", (e) => {
-        socket.emit("update_lobby_settings", { amount_of_map: e.target.value });
+        sendWs("update_lobby_settings", { amount_of_map: e.target.value });
     });
 
     // Ready & Start Controls
     btnToggleReady.addEventListener("click", () => {
-        socket.emit("toggle_ready");
+        sendWs("toggle_ready");
     });
 
     btnStartMatch.addEventListener("click", () => {
-        socket.emit("start_match");
+        sendWs("start_match");
     });
 
     // Post-Match Controls
     btnPlayAgain.addEventListener("click", () => {
-        socket.emit("play_again");
+        sendWs("play_again");
     });
 
     btnReturnToLobby.addEventListener("click", () => {
-        socket.emit("return_to_lobby");
+        sendWs("return_to_lobby");
     });
 
     if (btnResultsExitMenu) {
         btnResultsExitMenu.addEventListener("click", () => {
             stopGameLoop();
             if (currentLobby) {
-                socket.emit("leave_lobby");
+                sendWs("leave_lobby");
                 currentLobby = null;
             }
             clearLocalPlayerState();
@@ -365,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function sendChatFromInput(inputEl) {
         const text = inputEl.value.trim();
         if (text) {
-            socket.emit("send_chat_message", { message: text });
+            sendWs("send_chat_message", { message: text });
             inputEl.value = "";
         }
     }
@@ -380,63 +382,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.key === "Enter") sendChatFromInput(resultsChatInput);
     });
 
-    socket.on("receive_chat_message", (data) => {
-        const safeName = escapeHtml(data.senderName);
-        const safeMsg = escapeHtml(data.message);
-        const htmlLine = `<div class="chat-msg-line"><span class="chat-author">${safeName}:</span> ${safeMsg}</div>`;
-
-        lobbyChatMessages.insertAdjacentHTML("beforeend", htmlLine);
-        resultsChatMessages.insertAdjacentHTML("beforeend", htmlLine);
-
-        lobbyChatMessages.scrollTop = lobbyChatMessages.scrollHeight;
-        resultsChatMessages.scrollTop = resultsChatMessages.scrollHeight;
-    });
-
     function escapeHtml(str) {
         return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
-
-    // Socket Event Handlers
-    socket.on("lobby_created", (data) => {
-        clearLocalPlayerState();
-        currentLobby = data.lobby;
-        localPlayerId = data.playerId;
-        physics.setLocalPlayerId(localPlayerId);
-        updateLobbyUI();
-        showScreen("lobbyRoom");
-    });
-
-    socket.on("lobby_joined", (data) => {
-        clearLocalPlayerState();
-        currentLobby = data.lobby;
-        localPlayerId = data.playerId;
-        physics.setLocalPlayerId(localPlayerId);
-        updateLobbyUI();
-        showScreen("lobbyRoom");
-    });
-
-    socket.on("lobby_updated", (data) => {
-        currentLobby = data.lobby;
-        updateLobbyUI();
-        updateResultsHostState();
-    });
-
-    socket.on("left_lobby", () => {
-        currentLobby = null;
-        clearLocalPlayerState();
-        showScreen("mainMenu");
-    });
-
-    socket.on("player_kicked", (data) => {
-        currentLobby = null;
-        clearLocalPlayerState();
-        alert(data.message || "You have been kicked from the lobby.");
-        showScreen("mainMenu");
-    });
-
-    socket.on("error_message", (data) => {
-        alert(data.message);
-    });
 
     function updateLobbyUI() {
         if (!currentLobby) return;
@@ -478,7 +426,7 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.addEventListener("click", (e) => {
                 const targetId = e.target.getAttribute("data-kick-id");
                 if (targetId) {
-                    socket.emit("kick_player", { targetPlayerId: targetId });
+                    sendWs("kick_player", { targetPlayerId: targetId });
                 }
             });
         });
@@ -515,7 +463,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateResultsHostState() {
         if (!currentLobby) return;
         const isHost = (localPlayerId === currentLobby.host_ID);
-        
+
         if (isHost) {
             btnPlayAgain.style.display = "inline-block";
             btnReturnToLobby.style.display = "inline-block";
@@ -525,87 +473,12 @@ document.addEventListener("DOMContentLoaded", () => {
             btnReturnToLobby.style.display = "none";
             waitingHostText.style.display = "block";
         }
-        // LEAVE ROOM button is ALWAYS visible for ALL players!
         if (btnResultsExitMenu) {
             btnResultsExitMenu.style.display = "inline-block";
         }
     }
 
     const loadingStatusText = document.getElementById("loading-status-text");
-
-    // Match Loading Screen & Synchronization Handlers
-    socket.on("match_loading", (data) => {
-        stopGameLoop();
-        currentLobby = data.lobby;
-        showScreen("loadingScreen");
-        renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
-
-        if (loadingStatusText) {
-            loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
-        }
-
-        // Emit client_ready to server once local loading is complete
-        socket.emit("client_ready");
-    });
-
-    socket.on("loading_progress", (data) => {
-        if (loadingStatusText) {
-            loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
-        }
-    });
-
-    socket.on("kicked", (data) => {
-        stopGameLoop();
-        currentLobby = null;
-        clearLocalPlayerState();
-        showScreen("mainMenu");
-        alert(data.message || "You have been kicked from the room.");
-    });
-
-    // Match Start Handler
-    socket.on("match_starting", (data) => {
-        currentLobby = data.lobby;
-        showScreen("gameView");
-
-        renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
-        
-        const startChk = data.checkpoints.find(c => c.checkpoint_id === data.lobby.startCheckpointId);
-        const startX = startChk ? startChk.respawn_coordinate_x : 100;
-        const startY = startChk ? startChk.respawn_coordinate_y : 320;
-
-        let myChainIdx = 0;
-        if (currentLobby && currentLobby.players) {
-            const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
-            if (myPlayer && myPlayer.chain_index !== undefined) {
-                myChainIdx = myPlayer.chain_index;
-            }
-        }
-        const chainedOffset = (currentLobby.mode_id === "flappy_chained") ? (myChainIdx * 60) : 0;
-        
-        physics.resetLocalState(startX - chainedOffset, startY);
-        physics.isFrozen = true; // Freeze physics & inputs during countdown
-        startGameLoop(); // Start render loop immediately so canvas renders initial game scene
-
-        let count = data.countdownSeconds || 3;
-        startCountdownEl.style.display = "block";
-        startCountdownEl.textContent = count;
-
-        const timer = setInterval(() => {
-            count--;
-            if (count > 0) {
-                startCountdownEl.textContent = count;
-            } else if (count === 0) {
-                startCountdownEl.textContent = "GO!";
-                physics.isFrozen = false; // Unfreeze immediately on GO! for instant frame 1 jump response
-                physics.predictedState.velocityY = 0;
-            } else {
-                clearInterval(timer);
-                startCountdownEl.style.display = "none";
-                physics.isFrozen = false;
-                physics.predictedState.velocityY = 0;
-            }
-        }, 1000);
-    });
 
     function updateInventoryUI(itemType) {
         if (!hudInventory) return;
@@ -643,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const input = physics.handleLocalJump();
         audioManager.playSFX("wing");
-        socket.emit("player_input", input);
+        sendWs("player_input", input);
     }
 
     window.addEventListener("keydown", (e) => {
@@ -657,7 +530,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.code === "KeyF" || e.key === "f" || e.key === "F") {
             e.preventDefault();
             if (gameLoopRunning && physics.localHeldItem) {
-                socket.emit("use_item");
+                sendWs("use_item");
             }
         }
     });
@@ -670,135 +543,6 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         handleJumpInput();
     }, { passive: false });
-
-    // Server Snapshot Handler
-    socket.on("game_snapshot", (snapshot) => {
-        physics.reconcileServerSnapshot(snapshot);
-        updateInventoryUI(physics.localHeldItem);
-
-        if (snapshot.finishCountdown !== null && snapshot.finishCountdown >= 0) {
-            finishTimerBanner.style.display = "block";
-            finishTimerSecondsEl.textContent = snapshot.finishCountdown;
-        } else {
-            finishTimerBanner.style.display = "none";
-        }
-    });
-
-    socket.on("chained_wipeout", () => {
-        audioManager.playSFX("hit");
-        audioManager.playSFX("die");
-    });
-
-    socket.on("item_collected", (data) => {
-        audioManager.playSFX("point");
-        if (data.playerId === localPlayerId && data.acquiredItem) {
-            physics.localHeldItem = data.acquiredItem;
-            updateInventoryUI(data.acquiredItem);
-        }
-        if (renderer && renderer.itemBoxes) {
-            const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
-            if (targetBox) {
-                targetBox.collected = true;
-                targetBox.isActive = false;
-            }
-        }
-    });
-
-    socket.on("item_respawned", (data) => {
-        if (renderer && renderer.itemBoxes && data && data.itemId) {
-            const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
-            if (targetBox) {
-                targetBox.collected = false;
-                targetBox.isActive = true;
-            }
-        }
-    });
-
-    socket.on("shield_expired", (data) => {
-        if (data && data.playerId === localPlayerId) {
-            physics.localHasShield = false;
-        }
-        if (physics.remotePlayers.has(data.playerId)) {
-            physics.remotePlayers.get(data.playerId).hasShield = false;
-        }
-    });
-
-    socket.on("invincibility_expired", (data) => {
-        if (data && data.playerId === localPlayerId) {
-            physics.localIsInvincible = false;
-        }
-        if (physics.remotePlayers.has(data.playerId)) {
-            physics.remotePlayers.get(data.playerId).isInvincible = false;
-        }
-    });
-
-    socket.on("item_used", (data) => {
-        try {
-            if (!data) return;
-
-            if (data.userId === localPlayerId) {
-                physics.localHeldItem = null;
-                updateInventoryUI(null);
-            }
-
-            // Real-time Bottom-Right Activity Feed Logging
-            if (data.wasted) {
-                addActivityFeedLog(`<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span> used ${(data.itemType || "ITEM").toUpperCase()} <span style="color: #888;">(WASTED)</span>`);
-            } else if (data.shieldBlocked) {
-                addActivityFeedLog(`<span style="color: #55b02e;">${escapeHtml(data.targetName)}</span>'s SHIELD blocked <span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>'s ${(data.itemType || "ITEM").toUpperCase()}`);
-            } else {
-                const userStr = `<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>`;
-                const targetStr = `<span style="color: #ffffff;">${escapeHtml(data.targetName || "Target")}</span>`;
-
-                if (data.itemType === "speed") {
-                    addActivityFeedLog(`${userStr} activated <span style="color: #55b02e;">SPEED BOOST</span>`);
-                } else if (data.itemType === "shield") {
-                    addActivityFeedLog(`${userStr} activated <span style="color: #3993d0;">SHIELD</span>`);
-                } else if (data.itemType === "swap") {
-                    addActivityFeedLog(`${userStr} <span style="color: #f7d51d;">SWAPPED</span> position with ${targetStr}`);
-                } else if (data.itemType === "ink") {
-                    addActivityFeedLog(`${userStr} used <span style="color: #e07629;">BUCKET</span> on ${targetStr}`);
-                    if (data.targetId === localPlayerId) {
-                        window.localInkUntil = Date.now() + (data.duration || 5000);
-                        audioManager.playSFX("swooshing");
-                    }
-                } else if (data.itemType === "curse") {
-                    addActivityFeedLog(`${userStr} CURSED ${targetStr} <span style="color: #d9534f;">[SLOW]</span>`);
-                    if (data.targetId === localPlayerId) audioManager.playSFX("hit");
-                } else if (data.itemType === "deathnote") {
-                    addActivityFeedLog(`${userStr} used <span style="color: #d9534f;">DEATH NOTE</span> on ${targetStr}`);
-                } else if (data.itemType === "ice") {
-                    addActivityFeedLog(`${userStr} <span style="color: #70c5ce;">FROZE</span> ${targetStr} in ICE`);
-                }
-            }
-
-            if (data.shieldBlocked && data.targetId === localPlayerId) {
-                audioManager.playSFX("point");
-                physics.localHasShield = false;
-                if (data.invincible) {
-                    physics.localIsInvincible = true;
-                }
-            }
-        } catch (err) {
-            console.warn("[Client] Safely handled item_used listener error:", err);
-        }
-    });
-
-    socket.on("deathnote_announcement", (data) => {
-        if (!data) return;
-        audioManager.playSFX("hit");
-        window.deathnoteEffectUntil = Date.now() + 2000;
-        window.deathnoteBannerText = `${data.attackerName} used DEATH NOTE on ${data.targetName}!`;
-    });
-
-    socket.on("player_respawned", (data) => {
-        if (data.playerId === localPlayerId) {
-            audioManager.playSFX("hit");
-            physics.predictedState.x = data.x;
-            physics.predictedState.y = data.y;
-            physics.predictedState.velocityY = 0;
-        }
-    });
 
     // 60 FPS Client Game Render & Prediction Loop
     function startGameLoop() {
@@ -825,77 +569,357 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Match Finished Handler
-    socket.on("match_finished", (data) => {
-        stopGameLoop();
-        finishTimerBanner.style.display = "none";
-        showScreen("resultsView");
-
-        updateResultsHostState();
-
-        const isChainedMode = (data.mode_id === "flappy_chained");
-
-        if (isChainedMode) {
-            resultsMainHeader.textContent = "FLAPPY CHAINED RESULTS";
-            resultsSubHeader.style.display = "block";
-            resultsSubHeader.textContent = `TEAM TOTAL TIME: ${data.team_total_time || "00:00.00"}`;
-
-            leaderboardHead.innerHTML = `
-                <tr>
-                    <th>PLAYER</th>
-                    <th>WIPES CAUSED</th>
-                    <th>STATUS</th>
-                </tr>
-            `;
-
-            leaderboardBody.innerHTML = "";
-            for (let entry of data.leaderboard) {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td><strong>${escapeHtml(entry.name)}</strong></td>
-                    <td><span style="color: #d9534f; font-weight: bold;">Wipes Caused: ${entry.wipes_caused || 0}</span></td>
-                    <td><span class="status-finished">COMPLETED</span></td>
-                `;
-                leaderboardBody.appendChild(tr);
-            }
-        } else {
-            // Standard Flappy Race Mode
-            resultsMainHeader.textContent = "MATCH RESULTS";
-            resultsSubHeader.style.display = "none";
-
-            leaderboardHead.innerHTML = `
-                <tr>
-                    <th>RANK</th>
-                    <th>PLAYER</th>
-                    <th>TIME / STATUS</th>
-                </tr>
-            `;
-
-            leaderboardBody.innerHTML = "";
-            for (let entry of data.leaderboard) {
-                const tr = document.createElement("tr");
-
-                const rankDisplay = entry.ranking ? `#${entry.ranking}` : "-";
-                const statusDisplay = entry.finish_time 
-                    ? `<span class="status-finished">${entry.finish_time}</span>`
-                    : `<span class="status-out">${entry.status_text}</span>`;
-
-                tr.innerHTML = `
-                    <td>${rankDisplay}</td>
-                    <td><strong>${escapeHtml(entry.name)}</strong></td>
-                    <td>${statusDisplay}</td>
-                `;
-                leaderboardBody.appendChild(tr);
-            }
+    // CENTRALIZED NATIVE WEBSOCKET MESSAGE DISPATCHER (ws.onmessage)
+    ws.onmessage = (event) => {
+        let msg;
+        try {
+            msg = JSON.parse(event.data);
+        } catch (err) {
+            console.error("[WebSocket] Failed to parse message:", err);
+            return;
         }
-    });
 
-    socket.on("returned_to_lobby", (data) => {
-        stopGameLoop();
-        currentLobby = data.lobby;
-        updateLobbyUI();
-        showScreen("lobbyRoom");
-    });
+        const { type, data = {} } = msg;
+
+        switch (type) {
+            case "receive_chat_message": {
+                const safeName = escapeHtml(data.senderName);
+                const safeMsg = escapeHtml(data.message);
+                const htmlLine = `<div class="chat-msg-line"><span class="chat-author">${safeName}:</span> ${safeMsg}</div>`;
+
+                if (lobbyChatMessages) lobbyChatMessages.insertAdjacentHTML("beforeend", htmlLine);
+                if (resultsChatMessages) resultsChatMessages.insertAdjacentHTML("beforeend", htmlLine);
+
+                if (lobbyChatMessages) lobbyChatMessages.scrollTop = lobbyChatMessages.scrollHeight;
+                if (resultsChatMessages) resultsChatMessages.scrollTop = resultsChatMessages.scrollHeight;
+                break;
+            }
+
+            case "lobby_created":
+            case "lobby_joined": {
+                clearLocalPlayerState();
+                currentLobby = data.lobby;
+                localPlayerId = data.playerId;
+                physics.setLocalPlayerId(localPlayerId);
+                updateLobbyUI();
+                showScreen("lobbyRoom");
+                break;
+            }
+
+            case "lobby_updated": {
+                currentLobby = data.lobby;
+                updateLobbyUI();
+                updateResultsHostState();
+                break;
+            }
+
+            case "left_lobby": {
+                currentLobby = null;
+                clearLocalPlayerState();
+                showScreen("mainMenu");
+                break;
+            }
+
+            case "player_kicked": {
+                currentLobby = null;
+                clearLocalPlayerState();
+                alert(data.message || "You have been kicked from the lobby.");
+                showScreen("mainMenu");
+                break;
+            }
+
+            case "error_message": {
+                alert(data.message);
+                break;
+            }
+
+            case "match_loading": {
+                stopGameLoop();
+                currentLobby = data.lobby;
+                showScreen("loadingScreen");
+                renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
+
+                if (loadingStatusText) {
+                    loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
+                }
+
+                sendWs("client_ready");
+                break;
+            }
+
+            case "loading_progress": {
+                if (loadingStatusText) {
+                    loadingStatusText.textContent = `Waiting for players... (${data.readyCount}/${data.totalPlayers} Ready)`;
+                }
+                break;
+            }
+
+            case "kicked": {
+                stopGameLoop();
+                currentLobby = null;
+                clearLocalPlayerState();
+                showScreen("mainMenu");
+                alert(data.message || "You have been kicked from the room.");
+                break;
+            }
+
+            case "match_starting": {
+                currentLobby = data.lobby;
+                showScreen("gameView");
+
+                renderer.setGameData(data.maps, data.checkpoints, data.itemBoxes, data.finishLineX, currentLobby.mode_id);
+
+                const startChk = data.checkpoints.find(c => c.checkpoint_id === data.lobby.startCheckpointId);
+                const startX = startChk ? startChk.respawn_coordinate_x : 100;
+                const startY = startChk ? startChk.respawn_coordinate_y : 320;
+
+                let myChainIdx = 0;
+                if (currentLobby && currentLobby.players) {
+                    const myPlayer = currentLobby.players.find(p => p.player_id === localPlayerId);
+                    if (myPlayer && myPlayer.chain_index !== undefined) {
+                        myChainIdx = myPlayer.chain_index;
+                    }
+                }
+                const chainedOffset = (currentLobby.mode_id === "flappy_chained") ? (myChainIdx * 60) : 0;
+
+                physics.resetLocalState(startX - chainedOffset, startY);
+                physics.isFrozen = true;
+                startGameLoop();
+
+                let count = data.countdownSeconds || 3;
+                startCountdownEl.style.display = "block";
+                startCountdownEl.textContent = count;
+
+                const timer = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        startCountdownEl.textContent = count;
+                    } else if (count === 0) {
+                        startCountdownEl.textContent = "GO!";
+                        physics.isFrozen = false;
+                        physics.predictedState.velocityY = 0;
+                    } else {
+                        clearInterval(timer);
+                        startCountdownEl.style.display = "none";
+                        physics.isFrozen = false;
+                        physics.predictedState.velocityY = 0;
+                    }
+                }, 1000);
+                break;
+            }
+
+            case "game_snapshot": {
+                physics.reconcileServerSnapshot(data);
+                updateInventoryUI(physics.localHeldItem);
+
+                if (data.finishCountdown !== null && data.finishCountdown >= 0) {
+                    finishTimerBanner.style.display = "block";
+                    finishTimerSecondsEl.textContent = data.finishCountdown;
+                } else {
+                    finishTimerBanner.style.display = "none";
+                }
+                break;
+            }
+
+            case "chained_wipeout": {
+                audioManager.playSFX("hit");
+                audioManager.playSFX("die");
+                break;
+            }
+
+            case "item_collected": {
+                audioManager.playSFX("point");
+                if (data.playerId === localPlayerId && data.acquiredItem) {
+                    physics.localHeldItem = data.acquiredItem;
+                    updateInventoryUI(data.acquiredItem);
+                }
+                if (renderer && renderer.itemBoxes) {
+                    const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
+                    if (targetBox) {
+                        targetBox.collected = true;
+                        targetBox.isActive = false;
+                    }
+                }
+                break;
+            }
+
+            case "item_respawned": {
+                if (renderer && renderer.itemBoxes && data && data.itemId) {
+                    const targetBox = renderer.itemBoxes.find(b => b.id === data.itemId);
+                    if (targetBox) {
+                        targetBox.collected = false;
+                        targetBox.isActive = true;
+                    }
+                }
+                break;
+            }
+
+            case "shield_expired": {
+                if (data && data.playerId === localPlayerId) {
+                    physics.localHasShield = false;
+                }
+                if (physics.remotePlayers.has(data.playerId)) {
+                    physics.remotePlayers.get(data.playerId).hasShield = false;
+                }
+                break;
+            }
+
+            case "invincibility_expired": {
+                if (data && data.playerId === localPlayerId) {
+                    physics.localIsInvincible = false;
+                }
+                if (physics.remotePlayers.has(data.playerId)) {
+                    physics.remotePlayers.get(data.playerId).isInvincible = false;
+                }
+                break;
+            }
+
+            case "item_used": {
+                try {
+                    if (!data) break;
+
+                    if (data.userId === localPlayerId) {
+                        physics.localHeldItem = null;
+                        updateInventoryUI(null);
+                    }
+
+                    if (data.wasted) {
+                        addActivityFeedLog(`<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span> used ${(data.itemType || "ITEM").toUpperCase()} <span style="color: #888;">(WASTED)</span>`);
+                    } else if (data.shieldBlocked) {
+                        addActivityFeedLog(`<span style="color: #55b02e;">${escapeHtml(data.targetName)}</span>'s SHIELD blocked <span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>'s ${(data.itemType || "ITEM").toUpperCase()}`);
+                    } else {
+                        const userStr = `<span style="color: #f7d51d;">${escapeHtml(data.userName)}</span>`;
+                        const targetStr = `<span style="color: #ffffff;">${escapeHtml(data.targetName || "Target")}</span>`;
+
+                        if (data.itemType === "speed") {
+                            addActivityFeedLog(`${userStr} activated <span style="color: #55b02e;">SPEED BOOST</span>`);
+                        } else if (data.itemType === "shield") {
+                            addActivityFeedLog(`${userStr} activated <span style="color: #3993d0;">SHIELD</span>`);
+                        } else if (data.itemType === "swap") {
+                            addActivityFeedLog(`${userStr} <span style="color: #f7d51d;">SWAPPED</span> position with ${targetStr}`);
+                        } else if (data.itemType === "ink") {
+                            addActivityFeedLog(`${userStr} used <span style="color: #e07629;">BUCKET</span> on ${targetStr}`);
+                            if (data.targetId === localPlayerId) {
+                                window.localInkUntil = Date.now() + (data.duration || 5000);
+                                audioManager.playSFX("swooshing");
+                            }
+                        } else if (data.itemType === "curse") {
+                            addActivityFeedLog(`${userStr} CURSED ${targetStr} <span style="color: #d9534f;">[SLOW]</span>`);
+                            if (data.targetId === localPlayerId) audioManager.playSFX("hit");
+                        } else if (data.itemType === "deathnote") {
+                            addActivityFeedLog(`${userStr} used <span style="color: #d9534f;">DEATH NOTE</span> on ${targetStr}`);
+                        } else if (data.itemType === "ice") {
+                            addActivityFeedLog(`${userStr} <span style="color: #70c5ce;">FROZE</span> ${targetStr} in ICE`);
+                        }
+                    }
+
+                    if (data.shieldBlocked && data.targetId === localPlayerId) {
+                        audioManager.playSFX("point");
+                        physics.localHasShield = false;
+                        if (data.invincible) {
+                            physics.localIsInvincible = true;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("[Client] Safely handled item_used listener error:", err);
+                }
+                break;
+            }
+
+            case "deathnote_announcement": {
+                if (!data) break;
+                audioManager.playSFX("hit");
+                window.deathnoteEffectUntil = Date.now() + 2000;
+                window.deathnoteBannerText = `${data.attackerName} used DEATH NOTE on ${data.targetName}!`;
+                break;
+            }
+
+            case "player_respawned": {
+                if (data.playerId === localPlayerId) {
+                    audioManager.playSFX("hit");
+                    physics.predictedState.x = data.x;
+                    physics.predictedState.y = data.y;
+                    physics.predictedState.velocityY = 0;
+                }
+                break;
+            }
+
+            case "match_finished": {
+                stopGameLoop();
+                finishTimerBanner.style.display = "none";
+                showScreen("resultsView");
+
+                updateResultsHostState();
+
+                const isChainedMode = (data.mode_id === "flappy_chained");
+
+                if (isChainedMode) {
+                    resultsMainHeader.textContent = "FLAPPY CHAINED RESULTS";
+                    resultsSubHeader.style.display = "block";
+                    resultsSubHeader.textContent = `TEAM TOTAL TIME: ${data.team_total_time || "00:00.00"}`;
+
+                    leaderboardHead.innerHTML = `
+                        <tr>
+                            <th>PLAYER</th>
+                            <th>WIPES CAUSED</th>
+                            <th>STATUS</th>
+                        </tr>
+                    `;
+
+                    leaderboardBody.innerHTML = "";
+                    for (let entry of data.leaderboard) {
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td><strong>${escapeHtml(entry.name)}</strong></td>
+                            <td><span style="color: #d9534f; font-weight: bold;">Wipes Caused: ${entry.wipes_caused || 0}</span></td>
+                            <td><span class="status-finished">COMPLETED</span></td>
+                        `;
+                        leaderboardBody.appendChild(tr);
+                    }
+                } else {
+                    resultsMainHeader.textContent = "MATCH RESULTS";
+                    resultsSubHeader.style.display = "none";
+
+                    leaderboardHead.innerHTML = `
+                        <tr>
+                            <th>RANK</th>
+                            <th>PLAYER</th>
+                            <th>TIME / STATUS</th>
+                        </tr>
+                    `;
+
+                    leaderboardBody.innerHTML = "";
+                    for (let entry of data.leaderboard) {
+                        const tr = document.createElement("tr");
+
+                        const rankDisplay = entry.ranking ? `#${entry.ranking}` : "-";
+                        const statusDisplay = entry.finish_time 
+                            ? `<span class="status-finished">${entry.finish_time}</span>`
+                            : `<span class="status-out">${entry.status_text}</span>`;
+
+                        tr.innerHTML = `
+                            <td>${rankDisplay}</td>
+                            <td><strong>${escapeHtml(entry.name)}</strong></td>
+                            <td>${statusDisplay}</td>
+                        `;
+                        leaderboardBody.appendChild(tr);
+                    }
+                }
+                break;
+            }
+
+            case "returned_to_lobby": {
+                stopGameLoop();
+                currentLobby = data.lobby;
+                updateLobbyUI();
+                showScreen("lobbyRoom");
+                break;
+            }
+
+            default:
+                console.warn(`[WebSocket] Central router received unknown message type: ${type}`);
+        }
+    };
 
     updateCustomizationUI();
 });

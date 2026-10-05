@@ -14,11 +14,74 @@ const {
 } = require("../config/constants");
 
 class LobbyManager {
-    constructor(io) {
-        this.io = io;
+    constructor(clients = new Map()) {
+        this.clients = clients; // Map: player_id -> WebSocket (or legacy mock object)
         this.lobbies = new Map(); // Lobby_id -> Lobby
-        this.playerLobbyMap = new Map(); // socketId -> Lobby_id
+        this.playerLobbyMap = new Map(); // player_id -> Lobby_id
         this.gameEngines = new Map(); // Lobby_id -> GameEngine
+    }
+
+    // Helper: Send JSON message to a single client (by WebSocket object or player_id string)
+    sendTo(wsOrId, type, data = {}) {
+        let ws = null;
+        if (typeof wsOrId === "string" && this.clients && typeof this.clients.get === "function") {
+            ws = this.clients.get(wsOrId);
+        } else if (wsOrId && typeof wsOrId.send === "function") {
+            ws = wsOrId;
+        }
+
+        const payload = JSON.stringify({ type, data });
+        if (ws && ws.readyState === 1) { // 1 = WebSocket.OPEN
+            ws.send(payload);
+        } else if (wsOrId && typeof wsOrId.emit === "function") {
+            // Support for legacy mock socket instances in unit tests
+            wsOrId.emit(type, data);
+        } else if (this.clients && typeof this.clients.to === "function") {
+            this.clients.to(wsOrId).emit(type, data);
+        }
+    }
+
+    // Helper: Broadcast JSON message to all connected clients in a specific room
+    broadcastToRoom(lobbyId, type, data = {}) {
+        const lobby = this.lobbies.get(lobbyId);
+        if (!lobby) return;
+
+        const payload = JSON.stringify({ type, data });
+        if (this.clients && typeof this.clients.get === "function") {
+            for (const playerId of lobby.players.keys()) {
+                const ws = this.clients.get(playerId);
+                if (ws && ws.readyState === 1) {
+                    ws.send(payload);
+                } else if (ws && typeof ws.emit === "function") {
+                    ws.emit(type, data);
+                }
+            }
+        } else if (this.clients && typeof this.clients.to === "function") {
+            // Legacy mockIo support for unit tests
+            this.clients.to(lobbyId).emit(type, data);
+        }
+    }
+
+    // Helper: Broadcast JSON message to all connected WebSocket clients
+    broadcast(data) {
+        let payload;
+        if (typeof data === "string") {
+            payload = data;
+        } else if (data && data.type) {
+            payload = JSON.stringify(data);
+        } else {
+            payload = JSON.stringify({ type: "broadcast", data });
+        }
+
+        if (this.clients && typeof this.clients.values === "function") {
+            for (const ws of this.clients.values()) {
+                if (ws && ws.readyState === 1) {
+                    ws.send(payload);
+                }
+            }
+        } else if (this.clients && typeof this.clients.emit === "function") {
+            this.clients.emit("broadcast", data);
+        }
     }
 
     generateLobbyId() {
@@ -30,87 +93,91 @@ class LobbyManager {
         return code;
     }
 
+    getSocketId(socket) {
+        if (!socket) return null;
+        return socket.id || socket;
+    }
+
     createLobby(socket, data) {
+        const socketId = this.getSocketId(socket);
         let lobbyId = this.generateLobbyId();
         while (this.lobbies.has(lobbyId)) {
             lobbyId = this.generateLobbyId();
         }
 
-        const player = new Player(socket.id, data.name, data.skin_ID || 0, data.hat_ID || 0);
+        const player = new Player(socketId, data.name, data.skin_ID || 0, data.hat_ID || 0);
         player.ready_status = true; // Host is auto-ready
 
-        const lobby = new Lobby(lobbyId, socket.id);
+        const lobby = new Lobby(lobbyId, socketId);
         lobby.addPlayer(player);
 
         this.lobbies.set(lobbyId, lobby);
-        this.playerLobbyMap.set(socket.id, lobbyId);
+        this.playerLobbyMap.set(socketId, lobbyId);
 
-        socket.join(lobbyId);
-
-        socket.emit("lobby_created", {
+        this.sendTo(socket, "lobby_created", {
             lobby: this.serializeLobby(lobby),
-            playerId: socket.id
+            playerId: socketId
         });
     }
 
     joinLobby(socket, data) {
+        const socketId = this.getSocketId(socket);
         const lobbyId = (data.Lobby_id || "").toUpperCase().trim();
         const lobby = this.lobbies.get(lobbyId);
 
         if (!lobby) {
-            return socket.emit("error_message", { message: "Lobby not found. Please check code." });
+            return this.sendTo(socket, "error_message", { message: "Lobby not found. Please check code." });
         }
 
         if (lobby.status !== "waiting") {
-            return socket.emit("error_message", { message: "Match already in progress or completed." });
+            return this.sendTo(socket, "error_message", { message: "Match already in progress or completed." });
         }
 
         if (lobby.players.size >= 4) { // Max 4 players
-            return socket.emit("error_message", { message: "Lobby is full (Max 4 players)." });
+            return this.sendTo(socket, "error_message", { message: "Lobby is full (Max 4 players)." });
         }
 
-        const player = new Player(socket.id, data.name, data.skin_ID || 0, data.hat_ID || 0);
+        const player = new Player(socketId, data.name, data.skin_ID || 0, data.hat_ID || 0);
         lobby.addPlayer(player);
 
-        this.playerLobbyMap.set(socket.id, lobbyId);
-        socket.join(lobbyId);
+        this.playerLobbyMap.set(socketId, lobbyId);
 
-        socket.emit("lobby_joined", {
+        this.sendTo(socket, "lobby_joined", {
             lobby: this.serializeLobby(lobby),
-            playerId: socket.id
+            playerId: socketId
         });
 
-        this.io.to(lobbyId).emit("lobby_updated", {
+        this.broadcastToRoom(lobbyId, "lobby_updated", {
             lobby: this.serializeLobby(lobby)
         });
     }
 
     leaveLobby(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
         // Mid-Match & Lobby Host Migration: Silent re-assignment if Host leaves
-        if (lobby.host_ID === socket.id && lobby.players.size > 1) {
-            const remainingPlayers = Array.from(lobby.players.values()).filter(p => p.player_id !== socket.id);
+        if (lobby.host_ID === socketId && lobby.players.size > 1) {
+            const remainingPlayers = Array.from(lobby.players.values()).filter(p => p.player_id !== socketId);
             const newHost = remainingPlayers[0];
             lobby.host_ID = newHost.player_id;
             newHost.ready_status = true; // New host auto-ready
         }
 
-        lobby.removePlayer(socket.id);
-        this.playerLobbyMap.delete(socket.id);
-        socket.leave(lobbyId);
+        lobby.removePlayer(socketId);
+        this.playerLobbyMap.delete(socketId);
 
-        socket.emit("left_lobby");
+        this.sendTo(socket, "left_lobby", {});
 
         // Strict Anti-Ghost Room Garbage Collection
         if (lobby.players.size === 0) {
             this.destroyRoom(lobbyId);
         } else {
-            this.io.to(lobbyId).emit("lobby_updated", {
+            this.broadcastToRoom(lobbyId, "lobby_updated", {
                 lobby: this.serializeLobby(lobby)
             });
         }
@@ -126,30 +193,30 @@ class LobbyManager {
         console.log(`[GC] Room destroyed & memory cleared for Lobby ID: ${lobbyId}`);
     }
 
+    destroyLobby(lobbyId) {
+        this.destroyRoom(lobbyId);
+    }
+
     kickPlayer(socket, data) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
-        if (!lobby || lobby.host_ID !== socket.id) {
-            return socket.emit("error_message", { message: "Only the Host can kick players." });
+        if (!lobby || lobby.host_ID !== socketId) {
+            return this.sendTo(socket, "error_message", { message: "Only the Host can kick players." });
         }
 
         const targetPlayerId = data.targetPlayerId;
-        if (!targetPlayerId || targetPlayerId === socket.id) {
-            return socket.emit("error_message", { message: "Cannot kick yourself." });
+        if (!targetPlayerId || targetPlayerId === socketId) {
+            return this.sendTo(socket, "error_message", { message: "Cannot kick yourself." });
         }
 
         const targetPlayer = lobby.players.get(targetPlayerId);
         if (targetPlayer) {
-            this.io.to(targetPlayerId).emit("player_kicked", {
+            this.sendTo(targetPlayerId, "player_kicked", {
                 message: "You have been kicked from the lobby by the Host."
             });
-
-            const targetSocket = this.io.sockets.sockets.get(targetPlayerId);
-            if (targetSocket) {
-                targetSocket.leave(lobbyId);
-            }
 
             lobby.removePlayer(targetPlayerId);
             this.playerLobbyMap.delete(targetPlayerId);
@@ -157,7 +224,7 @@ class LobbyManager {
             if (lobby.players.size === 0) {
                 this.destroyRoom(lobbyId);
             } else {
-                this.io.to(lobbyId).emit("lobby_updated", {
+                this.broadcastToRoom(lobbyId, "lobby_updated", {
                     lobby: this.serializeLobby(lobby)
                 });
             }
@@ -165,48 +232,51 @@ class LobbyManager {
     }
 
     updateCustomization(socket, data) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
-        const player = lobby.players.get(socket.id);
+        const player = lobby.players.get(socketId);
         if (player) {
             if (data.skin_ID !== undefined) player.skin_ID = data.skin_ID;
             if (data.hat_ID !== undefined) player.hat_ID = data.hat_ID;
             if (data.name !== undefined && data.name.trim()) player.name = data.name.trim();
 
-            this.io.to(lobbyId).emit("lobby_updated", {
+            this.broadcastToRoom(lobbyId, "lobby_updated", {
                 lobby: this.serializeLobby(lobby)
             });
         }
     }
 
     toggleReady(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
-        const player = lobby.players.get(socket.id);
+        const player = lobby.players.get(socketId);
         if (player) {
             player.ready_status = !player.ready_status;
 
-            this.io.to(lobbyId).emit("lobby_updated", {
+            this.broadcastToRoom(lobbyId, "lobby_updated", {
                 lobby: this.serializeLobby(lobby)
             });
         }
     }
 
     updateLobbySettings(socket, data) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
-        if (!lobby || lobby.host_ID !== socket.id) {
-            return socket.emit("error_message", { message: "Only the Host can modify settings." });
+        if (!lobby || lobby.host_ID !== socketId) {
+            return this.sendTo(socket, "error_message", { message: "Only the Host can modify settings." });
         }
 
         if (data.mode_id) {
@@ -217,26 +287,27 @@ class LobbyManager {
             lobby.amount_of_map = Number(data.amount_of_map);
         }
 
-        this.io.to(lobbyId).emit("lobby_updated", {
+        this.broadcastToRoom(lobbyId, "lobby_updated", {
             lobby: this.serializeLobby(lobby)
         });
     }
 
     startMatch(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
-        if (!lobby || lobby.host_ID !== socket.id) {
-            return socket.emit("error_message", { message: "Only the Host can start the match." });
+        if (!lobby || lobby.host_ID !== socketId) {
+            return this.sendTo(socket, "error_message", { message: "Only the Host can start the match." });
         }
 
         if (lobby.players.size < 2) {
-            return socket.emit("error_message", { message: "Minimum 2 players required to start match." });
+            return this.sendTo(socket, "error_message", { message: "Minimum 2 players required to start match." });
         }
 
         if (!lobby.allPlayersReady()) {
-            return socket.emit("error_message", { message: "All players must be Ready before starting." });
+            return this.sendTo(socket, "error_message", { message: "All players must be Ready before starting." });
         }
 
         // Generate Maps, Checkpoints, and Item Boxes
@@ -244,12 +315,13 @@ class LobbyManager {
     }
 
     playAgain(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
-        if (!lobby || lobby.host_ID !== socket.id) {
-            return socket.emit("error_message", { message: "Only the Host can restart the match." });
+        if (!lobby || lobby.host_ID !== socketId) {
+            return this.sendTo(socket, "error_message", { message: "Only the Host can restart the match." });
         }
 
         // Stop existing engine
@@ -283,7 +355,7 @@ class LobbyManager {
             this.handleLoadingTimeout(lobbyId);
         }, 15000);
 
-        this.io.to(lobbyId).emit("match_loading", {
+        this.broadcastToRoom(lobbyId, "match_loading", {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
             checkpoints: Array.from(lobby.checkpoints.values()),
@@ -296,17 +368,18 @@ class LobbyManager {
     }
 
     clientReady(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby || lobby.status !== "loading") return;
 
-        lobby.loadingReadyPlayers.add(socket.id);
+        lobby.loadingReadyPlayers.add(socketId);
         const readyCount = lobby.loadingReadyPlayers.size;
         const totalPlayers = lobby.players.size;
 
-        this.io.to(lobbyId).emit("loading_progress", {
+        this.broadcastToRoom(lobbyId, "loading_progress", {
             readyCount: readyCount,
             totalPlayers: totalPlayers
         });
@@ -335,17 +408,13 @@ class LobbyManager {
 
         // Kick unready players
         for (let kickId of unreadyPlayerIds) {
-            const kickSocket = this.io.sockets.sockets.get(kickId);
-            if (kickSocket) {
-                kickSocket.emit("kicked", { message: "You have been kicked (Loading Timeout - Failed to load in time)." });
-                kickSocket.leave(lobbyId);
-            }
+            this.sendTo(kickId, "kicked", { message: "You have been kicked (Loading Timeout - Failed to load in time)." });
             this.playerLobbyMap.delete(kickId);
             lobby.removePlayer(kickId);
         }
 
         // Notify remaining players in room
-        this.io.to(lobbyId).emit("lobby_updated", {
+        this.broadcastToRoom(lobbyId, "lobby_updated", {
             lobby: this.serializeLobby(lobby)
         });
 
@@ -368,12 +437,12 @@ class LobbyManager {
 
         lobby.status = "playing";
 
-        // Initialize GameEngine
-        const engine = new GameEngine(lobby, this.io);
+        // Initialize GameEngine with lobbyManager instance
+        const engine = new GameEngine(lobby, this);
         this.gameEngines.set(lobbyId, engine);
 
         // Notify clients match is starting (3s countdown)
-        this.io.to(lobbyId).emit("match_starting", {
+        this.broadcastToRoom(lobbyId, "match_starting", {
             lobby: this.serializeLobby(lobby),
             maps: lobby.maps,
             checkpoints: Array.from(lobby.checkpoints.values()),
@@ -389,20 +458,21 @@ class LobbyManager {
     }
 
     sendChatMessage(socket, data) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
-        const player = lobby.players.get(socket.id);
+        const player = lobby.players.get(socketId);
         if (!player) return;
 
         const text = (data.message || "").trim();
         if (!text) return;
 
-        this.io.to(lobbyId).emit("receive_chat_message", {
-            senderId: socket.id,
+        this.broadcastToRoom(lobbyId, "receive_chat_message", {
+            senderId: socketId,
             senderName: player.name,
             message: text,
             timestamp: Date.now()
@@ -410,25 +480,27 @@ class LobbyManager {
     }
 
     handlePlayerInput(socket, data) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const engine = this.gameEngines.get(lobbyId);
         if (engine) {
-            engine.queueInput(socket.id, data);
+            engine.queueInput(socketId, data);
         }
     }
 
     returnToLobby(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby) return;
 
         // Only host can initiate return to lobby from post-match
-        if (lobby.host_ID !== socket.id) {
-            return socket.emit("error_message", { message: "Only the Host can return to lobby." });
+        if (lobby.host_ID !== socketId) {
+            return this.sendTo(socket, "error_message", { message: "Only the Host can return to lobby." });
         }
 
         const engine = this.gameEngines.get(lobbyId);
@@ -442,19 +514,20 @@ class LobbyManager {
             p.ready_status = (p.player_id === lobby.host_ID); // Host ready by default
         }
 
-        this.io.to(lobbyId).emit("returned_to_lobby", {
+        this.broadcastToRoom(lobbyId, "returned_to_lobby", {
             lobby: this.serializeLobby(lobby)
         });
     }
 
     useItem(socket) {
-        const lobbyId = this.playerLobbyMap.get(socket.id);
+        const socketId = this.getSocketId(socket);
+        const lobbyId = this.playerLobbyMap.get(socketId);
         if (!lobbyId) return;
 
         const lobby = this.lobbies.get(lobbyId);
         if (!lobby || lobby.status !== "playing") return;
 
-        const player = lobby.players.get(socket.id);
+        const player = lobby.players.get(socketId);
         if (!player || !player.heldItem) return;
 
         const usedItem = player.heldItem;
@@ -467,12 +540,12 @@ class LobbyManager {
             player.shieldTimer = setTimeout(() => {
                 player.hasShield = false;
                 player.shieldTimer = null;
-                this.io.to(lobby.Lobby_id).emit("shield_expired", {
+                this.broadcastToRoom(lobby.Lobby_id, "shield_expired", {
                     playerId: player.player_id
                 });
             }, SHIELD_DURATION_MS);
 
-            this.io.to(lobby.Lobby_id).emit("item_used", {
+            this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                 userId: player.player_id,
                 userName: player.name,
                 itemType: "shield",
@@ -492,7 +565,7 @@ class LobbyManager {
                 player.speedTimer = null;
             }, SPEED_BOOST_DURATION_MS);
 
-            this.io.to(lobby.Lobby_id).emit("item_used", {
+            this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                 userId: player.player_id,
                 userName: player.name,
                 itemType: "speed",
@@ -507,7 +580,7 @@ class LobbyManager {
             // Pick a random active opponent in lobby
             const opponents = Array.from(lobby.players.values()).filter(p => p.player_id !== player.player_id && p.is_alive && !p.is_finished);
             if (opponents.length === 0) {
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "swap",
@@ -524,10 +597,10 @@ class LobbyManager {
                 targetPlayer.isInvincible = true;
                 targetPlayer.invincibleTimer = setTimeout(() => {
                     targetPlayer.isInvincible = false;
-                    this.io.to(lobby.Lobby_id).emit("invincibility_expired", { playerId: targetPlayer.player_id });
+                    this.broadcastToRoom(lobby.Lobby_id, "invincibility_expired", { playerId: targetPlayer.player_id });
                 }, INVINCIBLE_DURATION_MS);
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "swap",
@@ -539,7 +612,7 @@ class LobbyManager {
             }
 
             if (targetPlayer.isInvincible) {
-                this.io.to(lobby.Lobby_id).emit("item_used", { userId: player.player_id, itemType: "swap", wasted: true });
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", { userId: player.player_id, itemType: "swap", wasted: true });
                 return;
             }
 
@@ -551,7 +624,7 @@ class LobbyManager {
             targetPlayer.x = tempX;
             targetPlayer.y = tempY;
 
-            this.io.to(lobby.Lobby_id).emit("item_used", {
+            this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                 userId: player.player_id,
                 userName: player.name,
                 itemType: "swap",
@@ -586,7 +659,7 @@ class LobbyManager {
             }
 
             if (!firstPlacePlayer) {
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: usedItem,
@@ -609,12 +682,12 @@ class LobbyManager {
                 firstPlacePlayer.invincibleTimer = setTimeout(() => {
                     firstPlacePlayer.isInvincible = false;
                     firstPlacePlayer.invincibleTimer = null;
-                    this.io.to(lobby.Lobby_id).emit("invincibility_expired", {
+                    this.broadcastToRoom(lobby.Lobby_id, "invincibility_expired", {
                         playerId: firstPlacePlayer.player_id
                     });
                 }, INVINCIBLE_DURATION_MS);
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: usedItem,
@@ -627,7 +700,7 @@ class LobbyManager {
             }
 
             if (firstPlacePlayer.isInvincible) {
-                this.io.to(lobby.Lobby_id).emit("item_used", { userId: player.player_id, itemType: usedItem, wasted: true });
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", { userId: player.player_id, itemType: usedItem, wasted: true });
                 return;
             }
 
@@ -640,7 +713,7 @@ class LobbyManager {
                     firstPlacePlayer.bucketTimer = null;
                 }, BUCKET_DURATION_MS);
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "ink",
@@ -656,7 +729,7 @@ class LobbyManager {
                     firstPlacePlayer.curseTimer = null;
                 }, CURSE_DURATION_MS);
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "curse",
@@ -672,7 +745,7 @@ class LobbyManager {
                 firstPlacePlayer.y = 320;
                 firstPlacePlayer.velocityY = 0;
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "deathnote",
@@ -680,7 +753,7 @@ class LobbyManager {
                     targetName: firstPlacePlayer.name
                 });
 
-                this.io.to(lobby.Lobby_id).emit("deathnote_announcement", {
+                this.broadcastToRoom(lobby.Lobby_id, "deathnote_announcement", {
                     attackerName: player.name,
                     targetName: firstPlacePlayer.name
                 });
@@ -693,7 +766,7 @@ class LobbyManager {
                     firstPlacePlayer.iceTimer = null;
                 }, ICE_DURATION_MS);
 
-                this.io.to(lobby.Lobby_id).emit("item_used", {
+                this.broadcastToRoom(lobby.Lobby_id, "item_used", {
                     userId: player.player_id,
                     userName: player.name,
                     itemType: "ice",

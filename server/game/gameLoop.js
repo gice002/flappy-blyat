@@ -13,12 +13,21 @@ const {
 } = require("../config/constants");
 
 class GameEngine {
-    constructor(lobby, io) {
+    constructor(lobby, lobbyManager) {
         this.lobby = lobby;
-        this.io = io;
+        this.lobbyManager = lobbyManager;
         this.loopInterval = null;
         this.inputQueues = new Map(); // socketId -> Array of { sequence, action, timestamp }
         this.tickCount = 0;
+    }
+
+    broadcast(type, data) {
+        if (this.lobbyManager && typeof this.lobbyManager.broadcastToRoom === "function") {
+            this.lobbyManager.broadcastToRoom(this.lobby.Lobby_id, type, data);
+        } else if (this.lobbyManager && typeof this.lobbyManager.to === "function") {
+            // Fallback for legacy unit test mocks passing io object
+            this.lobbyManager.to(this.lobby.Lobby_id).emit(type, data);
+        }
     }
 
     start() {
@@ -76,7 +85,7 @@ class GameEngine {
             const inputs = this.inputQueues.get(player.player_id) || [];
             while (inputs.length > 0) {
                 const input = inputs.shift();
-                if (!input) continue; // CRITICAL FIX: Ignore null or undefined inputs
+                if (!input) continue; // Ignore null or undefined inputs
 
                 if (input.action === "jump" && !player.isFrozenInIce) {
                     player.velocityY = JUMP_VELOCITY;
@@ -128,7 +137,7 @@ class GameEngine {
                 // Start 10-second finish countdown if first player to finish
                 if (this.lobby.finishTimerStart === null) {
                     this.lobby.finishTimerStart = now;
-                    this.io.to(this.lobby.Lobby_id).emit("finish_timer_started", {
+                    this.broadcast("finish_timer_started", {
                         countdownSeconds: 10
                     });
                 }
@@ -142,7 +151,7 @@ class GameEngine {
                     this.respawnPlayerAtCheckpoint(player, highestCheckpointInChained);
                 }
             }
-            this.io.to(this.lobby.Lobby_id).emit("chained_wipeout", {
+            this.broadcast("chained_wipeout", {
                 checkpointId: highestCheckpointInChained
             });
         }
@@ -240,7 +249,7 @@ class GameEngine {
                 const acquiredItem = itemTypes[Math.floor(Math.random() * itemTypes.length)];
                 player.heldItem = acquiredItem;
 
-                this.io.to(this.lobby.Lobby_id).emit("item_collected", {
+                this.broadcast("item_collected", {
                     itemId: item.id,
                     playerId: player.player_id,
                     acquiredItem: acquiredItem
@@ -253,7 +262,7 @@ class GameEngine {
                     item.isActive = true;
                     item.collectedBy = null;
                     item.respawnTimer = null;
-                    this.io.to(this.lobby.Lobby_id).emit("item_respawned", {
+                    this.broadcast("item_respawned", {
                         itemId: item.id
                     });
                 }, ITEM_RESPAWN_MS);
@@ -286,7 +295,7 @@ class GameEngine {
         }
         player.velocityY = 0;
 
-        this.io.to(this.lobby.Lobby_id).emit("player_respawned", {
+        this.broadcast("player_respawned", {
             playerId: player.player_id,
             checkpointId: checkpointId,
             x: player.x,
@@ -337,7 +346,7 @@ class GameEngine {
             collectedBy: item.collectedBy || null
         }));
 
-        this.io.to(this.lobby.Lobby_id).emit("game_snapshot", {
+        this.broadcast("game_snapshot", {
             tick: this.tickCount,
             serverTime: Date.now(),
             players: playersSnapshot,
@@ -403,7 +412,7 @@ class GameEngine {
 
         this.lobby.leaderboard = leaderboardEntries;
 
-        this.io.to(this.lobby.Lobby_id).emit("match_finished", {
+        this.broadcast("match_finished", {
             lobby_id: this.lobby.Lobby_id,
             mode_id: this.lobby.mode_id,
             team_total_time: teamTotalTimeStr,

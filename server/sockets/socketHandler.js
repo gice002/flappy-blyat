@@ -1,66 +1,123 @@
-function initSocketHandler(io, lobbyManager) {
-    io.on("connection", (socket) => {
-        console.log(`[Socket] Client connected: ${socket.id}`);
+const crypto = require("crypto");
 
-        socket.on("create_lobby", (data) => {
-            lobbyManager.createLobby(socket, data);
+function initSocketHandler(wss, clients, lobbyManager) {
+    // Support both (wss, clients, lobbyManager) and (wss, lobbyManager)
+    if (!lobbyManager && clients) {
+        lobbyManager = clients;
+        clients = new Map();
+    }
+
+    if (lobbyManager && !lobbyManager.clients) {
+        lobbyManager.clients = clients || new Map();
+    }
+
+    // Support mock socket.io object if passed in unit tests
+    if (wss && typeof wss.on === "function" && !wss.clients) {
+        wss.on("connection", (socket) => {
+            const playerId = socket.id || "p_" + crypto.randomBytes(4).toString("hex");
+            socket.id = playerId;
+            if (lobbyManager.clients) lobbyManager.clients.set(playerId, socket);
+
+            const events = [
+                "create_lobby", "join_lobby", "leave_lobby", "kick_player",
+                "update_customization", "toggle_ready", "update_lobby_settings",
+                "start_match", "play_again", "send_chat_message", "player_input",
+                "return_to_lobby", "use_item", "client_ready"
+            ];
+
+            events.forEach(eventName => {
+                socket.on(eventName, (data) => {
+                    const camelMethod = eventName.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+                    if (typeof lobbyManager[camelMethod] === "function") {
+                        lobbyManager[camelMethod](socket, data);
+                    }
+                });
+            });
+
+            socket.on("disconnect", () => {
+                lobbyManager.handleDisconnect(socket);
+                if (lobbyManager.clients) lobbyManager.clients.delete(playerId);
+            });
+        });
+        return;
+    }
+
+    wss.on("connection", (ws, req) => {
+        // Assign a unique player_id to the socket reference
+        const playerId = "p_" + crypto.randomBytes(4).toString("hex");
+        ws.id = playerId;
+        if (clients) clients.set(playerId, ws);
+
+        console.log(`[WebSocket] Client connected: ${ws.id}`);
+
+        ws.on("message", (message) => {
+            let parsed;
+            try {
+                parsed = JSON.parse(message.toString());
+            } catch (err) {
+                console.error("[WebSocket] Malformed JSON message received:", err);
+                return;
+            }
+
+            const type = parsed.type;
+            const data = parsed.data || {};
+
+            switch (type) {
+                case "create_lobby":
+                    lobbyManager.createLobby(ws, data);
+                    break;
+                case "join_lobby":
+                    lobbyManager.joinLobby(ws, data);
+                    break;
+                case "leave_lobby":
+                    lobbyManager.leaveLobby(ws);
+                    break;
+                case "kick_player":
+                    lobbyManager.kickPlayer(ws, data);
+                    break;
+                case "update_customization":
+                    lobbyManager.updateCustomization(ws, data);
+                    break;
+                case "toggle_ready":
+                    lobbyManager.toggleReady(ws);
+                    break;
+                case "update_lobby_settings":
+                    lobbyManager.updateLobbySettings(ws, data);
+                    break;
+                case "start_match":
+                    lobbyManager.startMatch(ws);
+                    break;
+                case "play_again":
+                    lobbyManager.playAgain(ws);
+                    break;
+                case "send_chat_message":
+                    lobbyManager.sendChatMessage(ws, data);
+                    break;
+                case "player_input":
+                    lobbyManager.handlePlayerInput(ws, data);
+                    break;
+                case "return_to_lobby":
+                    lobbyManager.returnToLobby(ws);
+                    break;
+                case "use_item":
+                    lobbyManager.useItem(ws);
+                    break;
+                case "client_ready":
+                    lobbyManager.clientReady(ws);
+                    break;
+                default:
+                    console.warn(`[WebSocket] Unknown event type: ${type}`);
+            }
         });
 
-        socket.on("join_lobby", (data) => {
-            lobbyManager.joinLobby(socket, data);
+        ws.on("close", () => {
+            console.log(`[WebSocket] Client disconnected: ${ws.id}`);
+            lobbyManager.handleDisconnect(ws);
+            if (clients) clients.delete(ws.id);
         });
 
-        socket.on("leave_lobby", () => {
-            lobbyManager.leaveLobby(socket);
-        });
-
-        socket.on("kick_player", (data) => {
-            lobbyManager.kickPlayer(socket, data);
-        });
-
-        socket.on("update_customization", (data) => {
-            lobbyManager.updateCustomization(socket, data);
-        });
-
-        socket.on("toggle_ready", () => {
-            lobbyManager.toggleReady(socket);
-        });
-
-        socket.on("update_lobby_settings", (data) => {
-            lobbyManager.updateLobbySettings(socket, data);
-        });
-
-        socket.on("start_match", () => {
-            lobbyManager.startMatch(socket);
-        });
-
-        socket.on("play_again", () => {
-            lobbyManager.playAgain(socket);
-        });
-
-        socket.on("send_chat_message", (data) => {
-            lobbyManager.sendChatMessage(socket, data);
-        });
-
-        socket.on("player_input", (data) => {
-            lobbyManager.handlePlayerInput(socket, data);
-        });
-
-        socket.on("return_to_lobby", () => {
-            lobbyManager.returnToLobby(socket);
-        });
-
-        socket.on("use_item", () => {
-            lobbyManager.useItem(socket);
-        });
-
-        socket.on("client_ready", () => {
-            lobbyManager.clientReady(socket);
-        });
-
-        socket.on("disconnect", () => {
-            console.log(`[Socket] Client disconnected: ${socket.id}`);
-            lobbyManager.handleDisconnect(socket);
+        ws.on("error", (err) => {
+            console.error(`[WebSocket] Error for client ${ws.id}:`, err);
         });
     });
 }

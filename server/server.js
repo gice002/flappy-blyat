@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const path = require("path");
-const { Server } = require("socket.io");
+const { WebSocketServer } = require("ws");
 const LobbyManager = require("./game/lobbyManager");
 const initSocketHandler = require("./sockets/socketHandler");
 
@@ -13,17 +13,11 @@ app.set("trust proxy", 1);
 
 const server = http.createServer(app);
 
-// Socket.IO configuration
-const io = new Server(server, {
-    cors: {
-        origin: process.env.CORS_ORIGIN || "*",
-        methods: ["GET", "POST"],
-        credentials: true
-    },
-    transports: ["websocket", "polling"],
-    pingTimeout: 10000,
-    pingInterval: 5000
-});
+// Native WebSocket server attached to HTTP server
+const wss = new WebSocketServer({ server });
+
+// Map to store connected clients: player_id -> WebSocket instance
+const clients = new Map();
 
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
@@ -35,9 +29,9 @@ app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Instantiate Lobby Manager & Socket Event Handlers
-const lobbyManager = new LobbyManager(io);
-initSocketHandler(io, lobbyManager);
+// Instantiate Lobby Manager & WebSocket Handlers
+const lobbyManager = new LobbyManager(clients);
+initSocketHandler(wss, clients, lobbyManager);
 
 function startServer(portToUse) {
     server.removeAllListeners("error");
@@ -54,6 +48,7 @@ function startServer(portToUse) {
         console.log(`====================================================`);
         console.log(` Flappy Bird Multiplayer Server running on port ${portToUse}`);
         console.log(` Environment: ${process.env.NODE_ENV || "development"}`);
+        console.log(` WebSocket: Native (ws) enabled`);
         console.log(` Open http://localhost:${portToUse} in your browser.`);
         console.log(`====================================================`);
     });
