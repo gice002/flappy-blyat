@@ -42,13 +42,43 @@ function initSocketHandler(wss, clients, lobbyManager) {
         return;
     }
 
+    // 15-second Heartbeat Keep-Alive Loop for Cloudflare Tunnel / Reverse Proxies
+    const heartbeatInterval = setInterval(() => {
+        if (!wss || !wss.clients) return;
+        for (const ws of wss.clients) {
+            if (ws.isAlive === false) {
+                console.log(`[WebSocket] Pruning dead ghost socket: ${ws.id}`);
+                ws.terminate();
+                if (clients && ws.id) clients.delete(ws.id);
+                continue;
+            }
+            ws.isAlive = false;
+            try {
+                ws.ping();
+            } catch (err) {
+                console.error(`[WebSocket] Ping error for ${ws.id}:`, err);
+            }
+        }
+    }, 15000);
+
+    if (wss && typeof wss.on === "function") {
+        wss.on("close", () => {
+            clearInterval(heartbeatInterval);
+        });
+    }
+
     wss.on("connection", (ws, req) => {
         // Assign a unique player_id to the socket reference
         const playerId = "p_" + crypto.randomBytes(4).toString("hex");
         ws.id = playerId;
+        ws.isAlive = true;
         if (clients) clients.set(playerId, ws);
 
         console.log(`[WebSocket] Client connected: ${ws.id}`);
+
+        ws.on("pong", () => {
+            ws.isAlive = true;
+        });
 
         ws.on("message", (message) => {
             let parsed;

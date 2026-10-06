@@ -19,21 +19,64 @@ document.addEventListener("DOMContentLoaded", () => {
         window.SERVER_URL = formattedServer;
     }
 
-    // Native WebSocket client initialization
-    const defaultProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const customBackend = window.SERVER_URL || (typeof localStorage !== "undefined" && localStorage.getItem("GAME_SERVER_URL"));
-    const wsUrl = customBackend ? customBackend : `${defaultProtocol}//${window.location.host}`;
-    
-    console.log(`[WebSocket] Connecting to backend: ${wsUrl}`);
-    const ws = new WebSocket(wsUrl);
-    window.ws = ws;
+    // Native WebSocket client initialization with Exponential Backoff Reconnection
+    let ws = null;
+    let reconnectAttempts = 0;
+    let reconnectTimeout = null;
+
+    function connectWebSocket() {
+        const defaultProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const customBackend = window.SERVER_URL || (typeof localStorage !== "undefined" && localStorage.getItem("GAME_SERVER_URL"));
+        const wsUrl = customBackend ? customBackend : `${defaultProtocol}//${window.location.host}`;
+        
+        console.log(`[WebSocket] Connecting to backend: ${wsUrl}`);
+        ws = new WebSocket(wsUrl);
+        window.ws = ws;
+
+        ws.onopen = () => {
+            console.log("[WebSocket] Connection established successfully!");
+            reconnectAttempts = 0;
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+            }
+        };
+
+        ws.onmessage = (event) => {
+            if (typeof handleSocketMessage === "function") {
+                handleSocketMessage(event);
+            }
+        };
+
+        ws.onclose = (event) => {
+            console.warn(`[WebSocket] Connection closed (Code: ${event.code}). Scheduling reconnection...`);
+            scheduleReconnection();
+        };
+
+        ws.onerror = (err) => {
+            console.error("[WebSocket] Error detected:", err);
+        };
+    }
+
+    function scheduleReconnection() {
+        if (reconnectTimeout) return;
+        reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000); // 1s, 2s, 4s, 8s, max 10s
+        console.log(`[WebSocket] Reconnecting in ${delay}ms (Attempt #${reconnectAttempts})...`);
+        reconnectTimeout = setTimeout(() => {
+            reconnectTimeout = null;
+            connectWebSocket();
+        }, delay);
+    }
+
+    connectWebSocket();
 
     // Helper: Send JSON message to server with standardized protocol { type, data }
     function sendWs(type, data = {}) {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type, data }));
         } else {
-            console.warn(`[WebSocket] Cannot send ${type}: connection state is ${ws.readyState}`);
+            console.warn(`[WebSocket] Cannot send ${type}: connection state is ${ws ? ws.readyState : "null"}`);
         }
     }
 
@@ -588,8 +631,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // CENTRALIZED NATIVE WEBSOCKET MESSAGE DISPATCHER (ws.onmessage)
-    ws.onmessage = (event) => {
+    // CENTRALIZED NATIVE WEBSOCKET MESSAGE DISPATCHER
+    function handleSocketMessage(event) {
         let msg;
         try {
             msg = JSON.parse(event.data);

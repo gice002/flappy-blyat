@@ -21,6 +21,17 @@ const clients = new Map();
 
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
+// Enable Cross-Origin Resource Sharing (CORS) for external frontends (Vercel, CDN)
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
 // Serve client static files
 app.use(express.static(path.join(__dirname, "../client")));
 
