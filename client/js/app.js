@@ -495,10 +495,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 ink: "assets/images/items/bucket.png",
                 shield: "assets/images/items/Absorption_JE3_BE3.png",
                 curse: "assets/images/items/Slowness_JE4.png",
-                speed: "assets/images/items/item_box.svg",
-                swap: "assets/images/items/item_box.svg",
-                deathnote: "assets/images/items/item_box.svg",
-                ice: "assets/images/items/item_box.svg"
+                speed: "assets/images/items/SpeedBoost.png",
+                swap: "assets/images/items/swap.png",
+                deathnote: "assets/images/items/DeathNote.webp",
+                ice: "assets/images/items/ice.png"
             };
             inventoryItemIcon.src = itemMap[itemType] || `assets/images/items/item_${itemType}.svg`;
         } else {

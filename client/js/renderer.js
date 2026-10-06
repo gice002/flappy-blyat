@@ -565,6 +565,16 @@ class CanvasRenderer {
             this.ctx.restore();
         }
 
+        // If Speed Boost active (speedMultiplier > 1.0), draw SpeedBoost icon trailing behind bird
+        if (speedMultiplier > 1.0) {
+            this.ctx.save();
+            const speedIcon = this.itemImages && this.itemImages.speed;
+            if (speedIcon && speedIcon.complete) {
+                this.ctx.drawImage(speedIcon, x - 16, y + 4, 20, 20);
+            }
+            this.ctx.restore();
+        }
+
         // If Cursed (speedMultiplier < 1.0), draw Slowness_JE4 icon at bird's tail
         if (speedMultiplier < 1.0) {
             this.ctx.save();
@@ -617,16 +627,21 @@ class CanvasRenderer {
         // If Frozen in Ice, render Ice Block overlay over bird
         if (isFrozenInIce) {
             this.ctx.save();
-            this.ctx.fillStyle = "rgba(112, 197, 206, 0.6)";
-            this.ctx.strokeStyle = "#3993d0";
-            this.ctx.lineWidth = 3;
-            this.ctx.fillRect(x + 17 - 22, y + 12 - 20, 44, 40);
-            this.ctx.strokeRect(x + 17 - 22, y + 12 - 20, 44, 40);
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "8px 'Press Start 2P'";
-            this.ctx.textAlign = "center";
-            this.ctx.strokeText("ICE", x + 17, y + 16);
-            this.ctx.fillText("ICE", x + 17, y + 16);
+            const iceImg = this.itemImages && this.itemImages.ice;
+            if (iceImg && iceImg.complete) {
+                this.ctx.drawImage(iceImg, x + 17 - 24, y + 12 - 24, 48, 48);
+            } else {
+                this.ctx.fillStyle = "rgba(112, 197, 206, 0.6)";
+                this.ctx.strokeStyle = "#3993d0";
+                this.ctx.lineWidth = 3;
+                this.ctx.fillRect(x + 17 - 22, y + 12 - 20, 44, 40);
+                this.ctx.strokeRect(x + 17 - 22, y + 12 - 20, 44, 40);
+                this.ctx.fillStyle = "#ffffff";
+                this.ctx.font = "8px 'Press Start 2P'";
+                this.ctx.textAlign = "center";
+                this.ctx.strokeText("ICE", x + 17, y + 16);
+                this.ctx.fillText("ICE", x + 17, y + 16);
+            }
             this.ctx.restore();
         }
 

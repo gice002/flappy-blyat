@@ -71,6 +71,10 @@
     "shield": "assets/images/items/Absorption_JE3_BE3.png",
     "buble": "assets/images/buble.png",
     "inbucket": "assets/images/items/inbucket.png",
-    "ink_splat": "assets/images/items/inbucket.png"
+    "ink_splat": "assets/images/items/inbucket.png",
+    "speed": "assets/images/items/SpeedBoost.png",
+    "swap": "assets/images/items/swap.png",
+    "deathnote": "assets/images/items/DeathNote.webp",
+    "ice": "assets/images/items/ice.png"
   }
 }

@@ -1,3 +1,4 @@
+const { performance } = require("perf_hooks");
 const LeaderboardEntry = require("../models/Leaderboard");
 const {
     TICK_RATE,
@@ -17,6 +18,10 @@ class GameEngine {
         this.lobby = lobby;
         this.lobbyManager = lobbyManager;
         this.loopInterval = null;
+        this.loopTimeout = null;
+        this.isRunning = false;
+        this.accumulator = 0;
+        this.lastTime = 0;
         this.inputQueues = new Map(); // socketId -> Array of { sequence, action, timestamp }
         this.tickCount = 0;
     }
@@ -35,9 +40,14 @@ class GameEngine {
         this.lobby.matchStartTime = Date.now();
         this.lobby.finishTimerStart = null;
         this.tickCount = 0;
+        this.isRunning = true;
+        this.accumulator = 0;
+        this.lastTime = performance.now();
 
         // Reset all players to start checkpoint with strict horizontal offset in Chained Mode
-        const startCheckpoint = this.lobby.checkpoints.get(this.lobby.startCheckpointId);
+        const startCheckpoint = (this.lobby.checkpoints && typeof this.lobby.checkpoints.get === "function")
+            ? this.lobby.checkpoints.get(this.lobby.startCheckpointId)
+            : null;
         const startX = startCheckpoint ? startCheckpoint.respawn_coordinate_x : 100;
         const startY = startCheckpoint ? startCheckpoint.respawn_coordinate_y : 320;
 
@@ -50,16 +60,54 @@ class GameEngine {
             chainIdx++;
         }
 
-        this.loopInterval = setInterval(() => {
-            this.tick();
-        }, TICK_INTERVAL);
+        // Start high-precision fixed timestep loop
+        this.scheduleNextLoop();
     }
 
     stop() {
+        this.isRunning = false;
+        if (this.loopTimeout) {
+            clearTimeout(this.loopTimeout);
+            this.loopTimeout = null;
+        }
         if (this.loopInterval) {
             clearInterval(this.loopInterval);
             this.loopInterval = null;
         }
+    }
+
+    scheduleNextLoop() {
+        if (!this.isRunning) return;
+
+        const now = performance.now();
+        let frameTime = now - this.lastTime;
+        this.lastTime = now;
+
+        // Cap max delta time (250ms max) to prevent spiral of death during event loop lag/pauses
+        if (frameTime > 250) {
+            frameTime = 250;
+        }
+
+        this.accumulator += frameTime;
+
+        // Process physics updates in discrete, fixed-size 16.66ms chunks
+        while (this.accumulator >= TICK_INTERVAL) {
+            this.tick();
+            this.accumulator -= TICK_INTERVAL;
+
+            // If tick() called endMatch() or stop(), abort remaining ticks immediately
+            if (!this.isRunning) {
+                break;
+            }
+        }
+
+        if (!this.isRunning) return;
+
+        // Dynamic sleep interval to lock game engine ticks strictly to 60 TPS (16.66ms per tick)
+        const nextTickDelay = Math.max(0, Math.floor(TICK_INTERVAL - this.accumulator));
+        this.loopTimeout = setTimeout(() => {
+            this.scheduleNextLoop();
+        }, nextTickDelay);
     }
 
     queueInput(playerId, inputData) {
