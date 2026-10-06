@@ -19,6 +19,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+logs/
+*.log
 
 # 3. ไฟล์ที่ได้จากการ Build และไฟล์ชั่วคราว
 dist/
@@ -27,6 +29,10 @@ out/
 tmp/
 temp/
 coverage/
+scratch/
+*.zip
+*.tar.gz
+*.tgz
 
 # 4. ไฟล์ขยะของระบบปฏิบัติการ (OS Metadata)
 .DS_Store
