@@ -1,0 +1,38 @@
+# fly.toml app configuration file for Flappy Bird Online
+
+app = "flappy-bird-online"
+primary_region = "sin" # Singapore region (ultra-low ping latency for Asia)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["html", "http", "tls"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 1000
+    soft_limit = 500
+
+  [[services.http_checks]]
+    interval = "15s"
+    grace_period = "10s"
+    method = "get"
+    path = "/health"
+    protocol = "http"
+    timeout = "3s"
+    tls_skip_verify = false

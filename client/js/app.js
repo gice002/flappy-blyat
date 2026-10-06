@@ -4,9 +4,28 @@ window.playerSkinId = 0;
 window.playerHatId = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Parse URL query parameter for custom backend (e.g. ?server=wss://xxxx.trycloudflare.com)
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryServer = urlParams.get("server") || urlParams.get("backend") || urlParams.get("ws");
+    if (queryServer) {
+        let formattedServer = queryServer.trim();
+        if (!formattedServer.startsWith("ws://") && !formattedServer.startsWith("wss://")) {
+            const proto = (window.location.protocol === "https:" || formattedServer.startsWith("https://")) ? "wss://" : "ws://";
+            formattedServer = proto + formattedServer.replace(/^https?:\/\//, "");
+        }
+        if (typeof localStorage !== "undefined") {
+            localStorage.setItem("GAME_SERVER_URL", formattedServer);
+        }
+        window.SERVER_URL = formattedServer;
+    }
+
     // Native WebSocket client initialization
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    const defaultProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const customBackend = window.SERVER_URL || (typeof localStorage !== "undefined" && localStorage.getItem("GAME_SERVER_URL"));
+    const wsUrl = customBackend ? customBackend : `${defaultProtocol}//${window.location.host}`;
+    
+    console.log(`[WebSocket] Connecting to backend: ${wsUrl}`);
+    const ws = new WebSocket(wsUrl);
     window.ws = ws;
 
     // Helper: Send JSON message to server with standardized protocol { type, data }
