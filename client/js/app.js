@@ -77,6 +77,22 @@ document.addEventListener("DOMContentLoaded", () => {
             ws.send(JSON.stringify({ type, data }));
         } else {
             console.warn(`[WebSocket] Cannot send ${type}: connection state is ${ws ? ws.readyState : "null"}`);
+            if (type === "create_lobby" || type === "join_lobby" || type === "start_match") {
+                const inputUrl = prompt(
+                    "Disconnected from Game Server!\n\nPlease enter your active Cloudflare Tunnel WebSocket URL (e.g. wss://xxxx.trycloudflare.com):",
+                    localStorage.getItem("GAME_SERVER_URL") || "wss://duration-republic-hey-duties.trycloudflare.com"
+                );
+                if (inputUrl) {
+                    let formatted = inputUrl.trim();
+                    if (!formatted.startsWith("ws://") && !formatted.startsWith("wss://")) {
+                        formatted = "wss://" + formatted.replace(/^https?:\/\//, "");
+                    }
+                    localStorage.setItem("GAME_SERVER_URL", formatted);
+                    window.SERVER_URL = formatted;
+                    connectWebSocket();
+                    alert("Reconnecting to server... Please click CREATE/JOIN ROOM again in 2 seconds!");
+                }
+            }
         }
     }
 
