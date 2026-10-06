@@ -217,17 +217,23 @@ class PhysicsEngine {
         }
     }
 
-    // Interpolate remote players towards target positions
+    // Interpolate remote players towards target positions (Ping-based Smoothing)
     updateRemotePlayers() {
+        const lerpFactor = 0.25; // Smooth frame-by-frame Linear Interpolation (Lerp)
         for (let remote of this.remotePlayers.values()) {
             if (remote.is_finished || remote.isFrozenInIce) {
                 remote.x = remote.targetX;
                 remote.y = remote.targetY;
                 remote.velocityY = 0;
             } else {
-                remote.x += (remote.targetX - remote.x) * 0.25;
-                remote.y += (remote.targetY - remote.y) * 0.25;
-                remote.velocityY = remote.targetVelocityY;
+                // Smooth frame-by-frame Lerp towards target server coordinates
+                remote.x += (remote.targetX - remote.x) * lerpFactor;
+                remote.y += (remote.targetY - remote.y) * lerpFactor;
+                remote.velocityY += (remote.targetVelocityY - remote.velocityY) * lerpFactor;
+
+                // Dead-reckon target forward position to absorb ping latency variations
+                const speedMult = (remote.speedMultiplier !== undefined && remote.speedMultiplier !== null) ? remote.speedMultiplier : 1.0;
+                remote.targetX += (this.forwardVelocity * speedMult) * 0.05;
             }
         }
     }
