@@ -38,6 +38,16 @@ class CanvasRenderer {
         setInterval(() => {
             this.animFrame = (this.animFrame + 1) % 4;
         }, 120);
+
+        // Visual Effects, Death Animations & Particle Systems
+        this.particles = [];
+        this.teleportRings = [];
+        this.floatingTexts = [];
+        this.deathEntities = [];
+        this.screenFlashes = [];
+        this.screenShakeTimer = 0;
+        this.screenShakeIntensity = 0;
+        this.isShaking = false;
     }
 
     drawFallbackPngBox(x, y, width, height, text = "PNG") {
@@ -167,6 +177,288 @@ class CanvasRenderer {
         this.fpsLocked = locked;
     }
 
+    applyScreenShake() {
+        if (this.screenShakeTimer > Date.now()) {
+            const shakeX = (Math.random() - 0.5) * this.screenShakeIntensity * 2;
+            const shakeY = (Math.random() - 0.5) * this.screenShakeIntensity * 2;
+            this.ctx.save();
+            this.ctx.translate(shakeX, shakeY);
+            this.isShaking = true;
+        } else {
+            this.isShaking = false;
+        }
+    }
+
+    restoreScreenShake() {
+        if (this.isShaking) {
+            this.ctx.restore();
+            this.isShaking = false;
+        }
+    }
+
+    triggerScreenShake(intensity = 8, durationMs = 300) {
+        this.screenShakeIntensity = intensity;
+        this.screenShakeTimer = Date.now() + durationMs;
+    }
+
+    triggerScreenFlash(color = "rgba(231, 76, 60, 0.45)", durationMs = 350) {
+        this.screenFlashes.push({
+            color: color,
+            until: Date.now() + durationMs,
+            duration: durationMs
+        });
+    }
+
+    triggerDeathEffect(worldX, worldY, isLocal = false, labelText = "CRASH!") {
+        // 1. Screen Shake & Red Screen Flash if local player died
+        if (isLocal) {
+            this.triggerScreenShake(10, 350);
+            this.triggerScreenFlash("rgba(231, 76, 60, 0.45)", 400);
+        } else {
+            this.triggerScreenShake(4, 200);
+        }
+
+        // 2. Exploding Burst Particles (Feathers, Smoke & Energy Sparkles)
+        const particleColors = isLocal ? ["#e74c3c", "#f39c12", "#ffffff", "#c0392b"] : ["#e67e22", "#f1c40f", "#ecf0f1", "#95a5a6"];
+        for (let i = 0; i < 35; i++) {
+            const angle = (Math.PI * 2 * i) / 35 + (Math.random() - 0.5);
+            const speed = 2 + Math.random() * 6;
+            this.particles.push({
+                x: worldX,
+                y: worldY,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 1.5,
+                size: 3 + Math.random() * 5,
+                color: particleColors[Math.floor(Math.random() * particleColors.length)],
+                alpha: 1.0,
+                decay: 0.02 + Math.random() * 0.02,
+                gravity: 0.2,
+                rotation: Math.random() * Math.PI * 2,
+                vr: (Math.random() - 0.5) * 0.3
+            });
+        }
+
+        // 3. Upward Bouncing Death Entity (short upward jump then rapid 360° spin fall)
+        this.deathEntities.push({
+            x: worldX,
+            y: worldY,
+            vx: (Math.random() - 0.5) * 2,
+            vy: -6, // Short upward bounce impulse
+            rotation: 0,
+            vr: (Math.random() > 0.5 ? 1 : -1) * 0.35, // Rapid spin speed
+            alpha: 1.0,
+            decay: 0.02,
+            isLocal: isLocal
+        });
+
+        // 4. Floating Death Label Text
+        this.floatingTexts.push({
+            x: worldX,
+            y: worldY - 15,
+            vy: -1.2,
+            text: labelText,
+            color: "#e74c3c",
+            alpha: 1.0,
+            decay: 0.02
+        });
+    }
+
+    triggerSwapEffect(x1, y1, x2, y2, p1Name = "", p2Name = "") {
+        // 1. Purple Magic Screen Flash
+        this.triggerScreenFlash("rgba(155, 89, 182, 0.4)", 450);
+        this.triggerScreenShake(6, 250);
+
+        const positions = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+        const magicColors = ["#9b59b6", "#8e44ad", "#3498db", "#00ffff", "#f1c40f", "#ffffff"];
+
+        positions.forEach((pos) => {
+            // Expanding Teleport Shockwave Rings
+            this.teleportRings.push({
+                x: pos.x,
+                y: pos.y,
+                radius: 5,
+                maxRadius: 45,
+                color: "#9b59b6",
+                alpha: 1.0,
+                lineWidth: 4,
+                decay: 0.03
+            });
+            this.teleportRings.push({
+                x: pos.x,
+                y: pos.y,
+                radius: 2,
+                maxRadius: 35,
+                color: "#00ffff",
+                alpha: 1.0,
+                lineWidth: 2,
+                decay: 0.04
+            });
+
+            // Magic Vortex Particle Swirl Burst
+            for (let i = 0; i < 30; i++) {
+                const angle = (Math.PI * 2 * i) / 30;
+                const speed = 2 + Math.random() * 5;
+                this.particles.push({
+                    x: pos.x,
+                    y: pos.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 3 + Math.random() * 4,
+                    color: magicColors[Math.floor(Math.random() * magicColors.length)],
+                    alpha: 1.0,
+                    decay: 0.025,
+                    gravity: 0,
+                    rotation: angle,
+                    vr: 0.1
+                });
+            }
+
+            // Floating "SWAPPED!" Text
+            this.floatingTexts.push({
+                x: pos.x,
+                y: pos.y - 20,
+                vy: -1.5,
+                text: "SWAPPED! ⇄",
+                color: "#f1c40f",
+                alpha: 1.0,
+                decay: 0.02
+            });
+        });
+    }
+
+    renderParticleEffects() {
+        this.ctx.save();
+
+        // 1. Render & Update Teleport Shockwave Rings
+        for (let i = this.teleportRings.length - 1; i >= 0; i--) {
+            const ring = this.teleportRings[i];
+            ring.radius += (ring.maxRadius - ring.radius) * 0.15;
+            ring.alpha -= ring.decay;
+
+            if (ring.alpha <= 0 || ring.radius >= ring.maxRadius - 1) {
+                this.teleportRings.splice(i, 1);
+                continue;
+            }
+
+            const screenX = ring.x - this.cameraX;
+            this.ctx.save();
+            this.ctx.globalAlpha = Math.max(0, ring.alpha);
+            this.ctx.strokeStyle = ring.color;
+            this.ctx.lineWidth = ring.lineWidth;
+            this.ctx.beginPath();
+            this.ctx.arc(screenX, ring.y, ring.radius, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+
+        // 2. Render & Update Burst & Magic Particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.gravity) p.vy += p.gravity;
+            p.alpha -= p.decay;
+            p.rotation += p.vr;
+
+            if (p.alpha <= 0) {
+                this.particles.splice(i, 1);
+                continue;
+            }
+
+            const screenX = p.x - this.cameraX;
+            this.ctx.save();
+            this.ctx.globalAlpha = Math.max(0, p.alpha);
+            this.ctx.translate(screenX, p.y);
+            this.ctx.rotate(p.rotation);
+            this.ctx.fillStyle = p.color;
+            this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            this.ctx.restore();
+        }
+
+        // 3. Render & Update Death Entities (Upward bounce + rapid spin fall)
+        for (let i = this.deathEntities.length - 1; i >= 0; i--) {
+            const d = this.deathEntities[i];
+            d.x += d.vx;
+            d.vy += 0.45; // Gravity pull
+            d.y += d.vy;
+            d.rotation += d.vr;
+            d.alpha -= d.decay;
+
+            if (d.alpha <= 0 || d.y > this.height + 100) {
+                this.deathEntities.splice(i, 1);
+                continue;
+            }
+
+            const screenX = d.x - this.cameraX;
+            this.ctx.save();
+            this.ctx.globalAlpha = Math.max(0, d.alpha);
+            this.ctx.translate(screenX, d.y);
+            this.ctx.rotate(d.rotation);
+
+            // Draw spinning red death bird shape
+            this.ctx.fillStyle = d.isLocal ? "#e74c3c" : "#e67e22";
+            this.ctx.fillRect(-17, -12, 34, 24);
+            this.ctx.strokeStyle = "#ffffff";
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(-17, -12, 34, 24);
+
+            // Draw "X" eyes for death feedback
+            this.ctx.strokeStyle = "#ffffff";
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(4, -6); this.ctx.lineTo(10, 0);
+            this.ctx.moveTo(10, -6); this.ctx.lineTo(4, 0);
+            this.ctx.stroke();
+
+            this.ctx.restore();
+        }
+
+        // 4. Render & Update Floating Texts
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+            const ft = this.floatingTexts[i];
+            ft.y += ft.vy;
+            ft.alpha -= ft.decay;
+
+            if (ft.alpha <= 0) {
+                this.floatingTexts.splice(i, 1);
+                continue;
+            }
+
+            const screenX = ft.x - this.cameraX;
+            this.ctx.save();
+            this.ctx.globalAlpha = Math.max(0, ft.alpha);
+            this.ctx.fillStyle = ft.color;
+            this.ctx.strokeStyle = "#000000";
+            this.ctx.lineWidth = 3;
+            this.ctx.font = "10px 'Press Start 2P'";
+            this.ctx.textAlign = "center";
+            this.ctx.strokeText(ft.text, screenX, ft.y);
+            this.ctx.fillText(ft.text, screenX, ft.y);
+            this.ctx.restore();
+        }
+
+        this.ctx.restore();
+    }
+
+    renderScreenFlashes() {
+        const now = Date.now();
+        for (let i = this.screenFlashes.length - 1; i >= 0; i--) {
+            const flash = this.screenFlashes[i];
+            if (now > flash.until) {
+                this.screenFlashes.splice(i, 1);
+                continue;
+            }
+
+            const remaining = flash.until - now;
+            const alphaRatio = Math.min(1.0, remaining / flash.duration);
+            this.ctx.save();
+            this.ctx.fillStyle = flash.color;
+            this.ctx.globalAlpha = alphaRatio;
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.restore();
+        }
+    }
+
     render(now) {
         const frameInterval = 1000 / 60; // Strictly synced to 60 FPS (16.6ms) physics tick
         const delta = now - this.lastFrameTime;
@@ -182,6 +474,9 @@ class CanvasRenderer {
 
         const localBird = this.physics.predictedState;
         this.cameraX = localBird.x - 150;
+
+        // Apply Screen Shake if active
+        this.applyScreenShake();
 
         // 1. Render Dynamic Parallax Background with Cross-Fade Transitions
         this.renderBackground();
@@ -199,8 +494,14 @@ class CanvasRenderer {
         this.renderChains();
         this.renderBirds();
 
+        // 5.5. Render Particle Systems & Death Entities
+        this.renderParticleEffects();
+
         // 6. Render Ground Strip
         this.renderGround();
+
+        // 7. Render Screen Flash Overlays
+        this.renderScreenFlashes();
 
         // 8. Render Ink Splat Attack Screen Overlay
         this.renderInkOverlay();
@@ -210,6 +511,9 @@ class CanvasRenderer {
 
         // 10. Render Racing Progress Bar HUD (Track Tracker)
         this.renderRacingProgressBar();
+
+        // Restore screen shake
+        this.restoreScreenShake();
     }
 
     renderDeathNoteEffect() {

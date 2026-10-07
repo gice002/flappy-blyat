@@ -802,6 +802,12 @@ document.addEventListener("DOMContentLoaded", () => {
             case "chained_wipeout": {
                 audioManager.playSFX("hit");
                 audioManager.playSFX("die");
+                if (renderer && typeof renderer.triggerDeathEffect === "function") {
+                    renderer.triggerDeathEffect(physics.predictedState.x, physics.predictedState.y, true, "WIPEOUT!");
+                    physics.remotePlayers.forEach((rp) => {
+                        renderer.triggerDeathEffect(rp.x, rp.y, false, "WIPEOUT!");
+                    });
+                }
                 break;
             }
 
@@ -875,6 +881,26 @@ document.addEventListener("DOMContentLoaded", () => {
                             addActivityFeedLog(`${userStr} activated <span style="color: #3993d0;">SHIELD</span>`);
                         } else if (data.itemType === "swap") {
                             addActivityFeedLog(`${userStr} <span style="color: #f7d51d;">SWAPPED</span> position with ${targetStr}`);
+                            if (renderer && typeof renderer.triggerSwapEffect === "function") {
+                                let uX = 0, uY = 0, tX = 0, tY = 0;
+                                if (data.userId === localPlayerId) {
+                                    uX = physics.predictedState.x;
+                                    uY = physics.predictedState.y;
+                                } else if (physics.remotePlayers.has(data.userId)) {
+                                    const rp = physics.remotePlayers.get(data.userId);
+                                    uX = rp.x;
+                                    uY = rp.y;
+                                }
+                                if (data.targetId === localPlayerId) {
+                                    tX = physics.predictedState.x;
+                                    tY = physics.predictedState.y;
+                                } else if (physics.remotePlayers.has(data.targetId)) {
+                                    const rp = physics.remotePlayers.get(data.targetId);
+                                    tX = rp.x;
+                                    tY = rp.y;
+                                }
+                                renderer.triggerSwapEffect(uX, uY, tX, tY, data.userName, data.targetName);
+                            }
                         } else if (data.itemType === "ink") {
                             addActivityFeedLog(`${userStr} used <span style="color: #e07629;">BUCKET</span> on ${targetStr}`);
                             if (data.targetId === localPlayerId) {
@@ -886,6 +912,21 @@ document.addEventListener("DOMContentLoaded", () => {
                             if (data.targetId === localPlayerId) audioManager.playSFX("hit");
                         } else if (data.itemType === "deathnote") {
                             addActivityFeedLog(`${userStr} used <span style="color: #d9534f;">DEATH NOTE</span> on ${targetStr}`);
+                            if (renderer && typeof renderer.triggerDeathEffect === "function") {
+                                let targetX = 0, targetY = 0;
+                                const isLocalTarget = (data.targetId === localPlayerId);
+                                if (isLocalTarget) {
+                                    targetX = physics.predictedState.x;
+                                    targetY = physics.predictedState.y;
+                                } else if (physics.remotePlayers.has(data.targetId)) {
+                                    const rp = physics.remotePlayers.get(data.targetId);
+                                    targetX = rp.x;
+                                    targetY = rp.y;
+                                }
+                                if (targetX || targetY) {
+                                    renderer.triggerDeathEffect(targetX, targetY, isLocalTarget, "DEATH NOTE!");
+                                }
+                            }
                         } else if (data.itemType === "ice") {
                             addActivityFeedLog(`${userStr} <span style="color: #70c5ce;">FROZE</span> ${targetStr} in ICE`);
                         }
@@ -913,11 +954,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             case "player_respawned": {
-                if (data.playerId === localPlayerId) {
+                const isLocal = (data.playerId === localPlayerId);
+                if (isLocal) {
                     audioManager.playSFX("hit");
                     physics.predictedState.x = data.x;
                     physics.predictedState.y = data.y;
                     physics.predictedState.velocityY = 0;
+                }
+                if (renderer && typeof renderer.triggerDeathEffect === "function") {
+                    renderer.triggerDeathEffect(data.x, data.y, isLocal, "CRASH!");
                 }
                 break;
             }
