@@ -430,7 +430,7 @@ class CanvasRenderer {
             this.ctx.fillStyle = ft.color;
             this.ctx.strokeStyle = "#000000";
             this.ctx.lineWidth = 3;
-            this.ctx.font = "10px 'Press Start 2P'";
+            this.ctx.font = "bold 13px 'Press Start 2P', 'Kanit', sans-serif";
             this.ctx.textAlign = "center";
             this.ctx.strokeText(ft.text, screenX, ft.y);
             this.ctx.fillText(ft.text, screenX, ft.y);
@@ -973,7 +973,7 @@ class CanvasRenderer {
         this.ctx.fillStyle = isLocal ? "#f7d51d" : "#ffffff";
         this.ctx.strokeStyle = "#000000";
         this.ctx.lineWidth = 3;
-        this.ctx.font = "8px 'Press Start 2P'";
+        this.ctx.font = "bold 11px 'Press Start 2P', 'Kanit', sans-serif";
         this.ctx.textAlign = "center";
 
         let labelName = name;
